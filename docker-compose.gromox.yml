@@ -1,0 +1,7 @@
+version: "3.9"
+services:
+  gromox:
+    build: .
+    hostname: mail.testing.com
+    container_name: gromox
+
