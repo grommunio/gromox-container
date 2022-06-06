@@ -18,6 +18,8 @@ RUN echo "deb [signed-by="$KEYRING"] https://download.grommunio.com/community/De
 
 RUN apt-get update && apt-get install -y gromox
 
+#RUN gromox-dbop -C
+
 ENTRYPOINT ["/bin/bash"]
 # Create a nginx container, maria db container and gromox container 
 # Put these on the same network 

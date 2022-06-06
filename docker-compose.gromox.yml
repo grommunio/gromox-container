@@ -7,7 +7,12 @@ services:
   db:
     image: mariadb:10
     #restart: always
-    environment:
-      MARIADB_ROOT_PASSWORD: example
+    env_file:
+      - db.env
+    #environment:
+    #  - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+    #  - MARIADB_USER=${MARIADB_USER}
+    #  - MARIADB_PASSWORD=${MARIADB_PASSWORD} 
+    #  - MARIADB_DATABASE=${MARIADB_DATABASE}
   nginx:
     image: nginx:1.21.6
