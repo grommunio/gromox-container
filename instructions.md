@@ -20,3 +20,8 @@ systemctl reload docker
   ```
   openssl req -x509 -nodes -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -subj '/CN=*.testing.com'
   ```
+* Create blank database and user 
+  ```
+  CREATE DATABASE `grommunio`;
+  GRANT ALL ON `grommunio`.* TO 'grommunio'@'localhost' IDENTIFIED BY 'freddledgruntbuggly';
+  ```

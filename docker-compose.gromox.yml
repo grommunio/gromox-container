@@ -4,4 +4,10 @@ services:
     build: .
     hostname: mail.testing.com
     container_name: gromox
-
+  db:
+    image: mariadb:10
+    #restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: example
+  nginx:
+    image: nginx:1.21.6
