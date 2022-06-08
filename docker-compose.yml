@@ -7,6 +7,7 @@ services:
   db:
     image: mariadb:10
     #restart: always
+    container_name: db
     env_file:
       - db.env
     #environment:

@@ -28,3 +28,5 @@ systemctl reload docker
 * Change the database settings in db.env. Keep MARIADB_USER and MARIADB_DATABASE as "grommunio" 
   * Note, I need to somehow bring in the db variables into the gromox container
   * My goal is to set up all the configs in a single container and use that container as a base container with different entry points for the sub-services
+
+* Make sure the values in db.env match the values in config_files/mysql_adaptor.cfg
