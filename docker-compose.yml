@@ -1,19 +1,30 @@
 version: "3.9"
 services:
-  gromox:
-    build: .
-    hostname: mail.testing.com
-    container_name: gromox
   db:
     image: mariadb:10
     #restart: always
     container_name: db
     env_file:
       - db.env
-    #environment:
-    #  - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
-    #  - MARIADB_USER=${MARIADB_USER}
-    #  - MARIADB_PASSWORD=${MARIADB_PASSWORD} 
-    #  - MARIADB_DATABASE=${MARIADB_DATABASE}
+    healthcheck:
+      test: ["CMD", 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p$$MYSQL_ROOT_PASSWORD' ]
+      timeout: 10s
+      retries: 10
+      start_period: 20s
   nginx:
     image: nginx:1.21.6
+  init-db:
+    context: .
+    dockerfile: initdb.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+  gromox:
+    build: .
+    hostname: mail.testing.com
+    #restart: always
+    container_name: gromox
+    depends_on:
+      db:
+        condition: service_healthy
+

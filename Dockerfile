@@ -24,22 +24,35 @@ COPY ./tls_keys .
 
 WORKDIR /
 
-COPY ./config_files/ssl_certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf
+# Set up config files
 
-# Set up DB
+COPY ./config_files/ssl_certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf
 
 COPY ./config_files/mysql_adaptor.cfg /etc/gromox/mysql_adaptor.cfg
 
-#RUN gromox-dbop -C
+COPY ./config_files/timer.cfg /etc/gromox/timer.cfg
+
+COPY ./config_files/http.cfg /etc/gromox/http.cfg
+
+COPY ./config_files/imap.cfg /etc/gromox/imap.cfg
+
+COPY ./config_files/pop3.cfg /etc/gromox/pop3.cfg
+
+# Set up DB
+# Run an ephemeral container to populate this data. Use the command below as entrypoint
+#ENTRYPOINT["gromox-dbop", "-C"]
+
+# For timer; timer must run with gromox-http. We need more than one process in the container
+#ENTRYPOINT ["/bin/bash", "/usr/libexec/gromox/timer", "&"]
+
+# For gromox-http
+#ENTRYPOINT ["/bin/bash", "/usr/libexec/gromox/http", "&"]
+
+# For gromox-imap
+#ENTRYPOINT ["/bin/bash", "/usr/libexec/gromox/imap", "&"]
+
+# For gromox-pop3
+#ENTRYPOINT ["/bin/bash", "/usr/libexec/gromox/pop3", "&"]
 
 ENTRYPOINT ["tail", "-f", "/dev/null"]
-
-
-# Create a nginx container, maria db container and gromox container 
-# Put these on the same network 
-
-#RUN apt-get install -y nginx #nginx-module-vts
-
-#RUN systemctl enable nginx && systemctl start nginx
-
 
