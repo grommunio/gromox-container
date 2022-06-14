@@ -6,7 +6,7 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Note: Use the pre-built packages for the different platforms available at - https://download.grommunio.com/
 
-RUN apt-get update && apt-get install -y curl git gnupg 
+RUN apt-get update && apt-get install -y curl git gnupg supervisor 
 
 ENV KEYRING=/usr/share/keyrings/grommunio.gpg
 

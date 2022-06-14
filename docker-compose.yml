@@ -14,8 +14,19 @@ services:
   nginx:
     image: nginx:1.21.6
   init-db:
-    context: .
-    dockerfile: initdb.Dockerfile
+    container_name: init-db
+    build:
+      context: .
+      dockerfile: init-db.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+  gromox-http:
+    build:
+      context: .
+      dockerfile: http.Dockerfile
+    #restart: always
+    container_name: gromox-http
     depends_on:
       db:
         condition: service_healthy
