@@ -14,7 +14,10 @@ services:
     networks:
       - gromox-network
   nginx:
-    image: nginx:1.21.6
+    container_name: gromox-nginx
+    build:
+      context: .
+      dockerfile: nginx.Dockerfile
     networks:
       - gromox-network
   init-db:
