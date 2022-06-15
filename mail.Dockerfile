@@ -1,8 +1,8 @@
 FROM olam1k0/grommunio:latest
 
-COPY ./config_files/http_supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY ./config_files/mail_supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-EXPOSE 10080 10443
+EXPOSE 993 995 5555 33333 
 
 ENTRYPOINT ["/usr/bin/supervisord"]
 # For timer; timer must run with gromox-http. We need more than one process in the container

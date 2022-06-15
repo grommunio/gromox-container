@@ -11,8 +11,12 @@ services:
       timeout: 10s
       retries: 10
       start_period: 20s
+    networks:
+      - gromox-network
   nginx:
     image: nginx:1.21.6
+    networks:
+      - gromox-network
   init-db:
     container_name: init-db
     build:
@@ -21,6 +25,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - gromox-network
+  mail:
+    container_name: mail
+    build:
+      context: .
+      dockerfile: mail.Dockerfile
+    networks:
+      - gromox-network
+  # waiting for jan's response
   gromox-http:
     build:
       context: .
@@ -30,6 +44,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - gromox-network
   gromox:
     build: .
     hostname: mail.testing.com
@@ -38,4 +54,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - gromox-network
+networks:
+  gromox-network: 
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+      - subnet: 172.16.238.0/24
+        gateway: 172.16.238.1
+      - subnet: 2001:3984:3989::/64
+        gateway: 2001:3984:3989::1
 

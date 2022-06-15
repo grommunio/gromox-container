@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y gromox grommunio-common nginx mariadb-c
 
 # Set up NGINX
 
-WORKDIR /certificates
+WORKDIR /home/certificates
 
 COPY ./tls_keys .
 
@@ -30,29 +30,11 @@ COPY ./config_files/ssl_certificate.conf /etc/grommunio-common/nginx/ssl_certifi
 
 COPY ./config_files/mysql_adaptor.cfg /etc/gromox/mysql_adaptor.cfg
 
-COPY ./config_files/timer.cfg /etc/gromox/timer.cfg
-
 COPY ./config_files/http.cfg /etc/gromox/http.cfg
 
 COPY ./config_files/imap.cfg /etc/gromox/imap.cfg
 
 COPY ./config_files/pop3.cfg /etc/gromox/pop3.cfg
 
-# Set up DB
-# Run an ephemeral container to populate this data. Use the command below as entrypoint
-#ENTRYPOINT["gromox-dbop", "-C"]
-
-# For timer; timer must run with gromox-http. We need more than one process in the container
-#ENTRYPOINT ["/bin/bash", "/usr/libexec/gromox/timer", "&"]
-
-# For gromox-http
-#ENTRYPOINT ["/bin/bash", "/usr/libexec/gromox/http", "&"]
-
-# For gromox-imap
-#ENTRYPOINT ["/bin/bash", "/usr/libexec/gromox/imap", "&"]
-
-# For gromox-pop3
-#ENTRYPOINT ["/bin/bash", "/usr/libexec/gromox/pop3", "&"]
-
-ENTRYPOINT ["tail", "-f", "/dev/null"]
+CMD ["tail", "-f", "/dev/null"]
 
