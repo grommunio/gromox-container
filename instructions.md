@@ -30,3 +30,8 @@ systemctl reload docker
   * My goal is to set up all the configs in a single container and use that container as a base container with different entry points for the sub-services
 
 * Make sure the values in db.env match the values in config_files/mysql_adaptor.cfg
+
+* Hacks for debian when using php7.4 
+  * rename other conf files in php-fpm `pool.d` directory
+  * run `service php7.4-fpm start` to generate a pid file
+  * run `php-fpm7.4`

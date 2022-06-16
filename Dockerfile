@@ -36,5 +36,10 @@ COPY ./config_files/imap.cfg /etc/gromox/imap.cfg
 
 COPY ./config_files/pop3.cfg /etc/gromox/pop3.cfg
 
+# Set up PHP FPM service
+RUN mv /etc/php/7.4/fpm/pool.d/www.conf /etc/php/7.4/fpm/pool.d/www.conf.bak
+
+RUN service php7.4-fpm start
+
 CMD ["tail", "-f", "/dev/null"]
 
