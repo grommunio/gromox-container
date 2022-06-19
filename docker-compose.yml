@@ -20,6 +20,16 @@ services:
       dockerfile: nginx.Dockerfile
     networks:
       - gromox-network
+  admin-api:
+    container_name: admin-api
+    build:
+      context: .
+      dockerfile: admin-api.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - gromox-network
   init-db:
     container_name: init-db
     build:
@@ -37,7 +47,6 @@ services:
       dockerfile: mail.Dockerfile
     networks:
       - gromox-network
-  # waiting for jan's response
   gromox-http:
     build:
       context: .
@@ -49,6 +58,7 @@ services:
         condition: service_healthy
     networks:
       - gromox-network
+  # this is a gromox test container 
   gromox:
     build: .
     hostname: mail.testing.com
