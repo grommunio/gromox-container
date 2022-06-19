@@ -1,0 +1,5 @@
+user = grommunio
+password = my_cool_secret
+hosts = db
+dbname = grommunio
+query = SELECT mainname FROM aliases WHERE aliasname='%s'

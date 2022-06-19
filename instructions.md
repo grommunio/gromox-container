@@ -35,3 +35,5 @@ systemctl reload docker
   * rename other conf files in php-fpm `pool.d` directory
   * run `service php7.4-fpm start` to generate a pid file
   * run `php-fpm7.4`
+
+* Idea: Use volumes for shared filesystem

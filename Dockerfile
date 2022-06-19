@@ -34,7 +34,13 @@ COPY ./config_files/http.cfg /etc/gromox/http.cfg
 
 COPY ./config_files/imap.cfg /etc/gromox/imap.cfg
 
+COPY ./config_files/smtp.cfg /etc/gromox/smtp.cfg
+
 COPY ./config_files/pop3.cfg /etc/gromox/pop3.cfg
+
+COPY ./config_files/g-alias.cf /etc/postfix/g-alias.cf
+
+COPY ./config_files/g-virt.cf /etc/postfix/g-virt.cf
 
 # Set up PHP FPM service
 RUN mv /etc/php/7.4/fpm/pool.d/www.conf /etc/php/7.4/fpm/pool.d/www.conf.bak

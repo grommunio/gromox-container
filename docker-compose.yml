@@ -47,6 +47,13 @@ services:
       dockerfile: mail.Dockerfile
     networks:
       - gromox-network
+  delivery:
+    container_name: delivery
+    build:
+      context: .
+      dockerfile: delivery.Dockerfile
+    networks:
+      - gromox-network
   gromox-http:
     build:
       context: .
