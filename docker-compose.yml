@@ -5,7 +5,7 @@ services:
     #restart: always
     container_name: db
     env_file:
-      - db.env
+      - ./env_files/db.env
     healthcheck:
       test: ["CMD", 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p$$MYSQL_ROOT_PASSWORD' ]
       timeout: 10s
@@ -25,9 +25,21 @@ services:
     build:
       context: .
       dockerfile: admin-api.Dockerfile
+    env_file:
+      - ./env_files/admin_api.env
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - gromox-network
+    #init-admin-api:
+    #container_name: init-admin-api
+    #build:
+    #  context: .
+    #  dockerfile: init-admin-api.Dockerfile
+    # depends_on:
+    #  db:
+    #    condition: service_healthy
     networks:
       - gromox-network
   init-db:

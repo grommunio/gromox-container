@@ -37,3 +37,4 @@ systemctl reload docker
   * run `php-fpm7.4`
 
 * Idea: Use volumes for shared filesystem
+* Idea: Find a way to automate the set up of `grommunio-admin passwd`
