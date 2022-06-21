@@ -13,5 +13,3 @@ RUN chown root:gromox /etc/gromox && \
 
 ENTRYPOINT ["/usr/bin/supervisord"]
 
-# Don't forget to start php-fpm in supervisor file
-

@@ -38,3 +38,5 @@ systemctl reload docker
 
 * Idea: Use volumes for shared filesystem
 * Idea: Find a way to automate the set up of `grommunio-admin passwd`
+* Idea: Automate the distribution of db pass
+* Idea: Automate the generation of ssl cert
