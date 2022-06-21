@@ -2,7 +2,6 @@ version: "3.9"
 services:
   db:
     image: mariadb:10
-    #restart: always
     container_name: db
     env_file:
       - ./env_files/db.env
@@ -30,16 +29,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - gromox-network
-    #init-admin-api:
-    #container_name: init-admin-api
-    #build:
-    #  context: .
-    #  dockerfile: init-admin-api.Dockerfile
-    # depends_on:
-    #  db:
-    #    condition: service_healthy
     networks:
       - gromox-network
   init-db:
@@ -70,7 +59,6 @@ services:
     build:
       context: .
       dockerfile: http.Dockerfile
-    #restart: always
     container_name: gromox-http
     depends_on:
       db:
