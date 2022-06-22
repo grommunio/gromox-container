@@ -40,3 +40,24 @@ systemctl reload docker
 * Idea: Find a way to automate the set up of `grommunio-admin passwd`
 * Idea: Automate the distribution of db pass
 * Idea: Automate the generation of ssl cert
+
+* Update the autodiscover conf here so gromox-http can be found
+```
+cat /usr/share/grommunio-common/nginx/upstreams.d/gromox.conf:upstream gromoxhttp {
+
+
+
+upstream gromoxhttp {
+    server localhost:10443;
+}
+```
+
+* NGINX proxies uwsgi port at 
+```
+location /api/v1 {
+    uwsgi_pass unix:///run/grommunio/admin-api.socket;
+    include uwsgi_params;
+}
+```
+  * We need to change from using a local unix socket to a TCP port
+

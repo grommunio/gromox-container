@@ -11,5 +11,7 @@ RUN chown root:gromox /etc/gromox && \
     ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf && \
     mkdir /run/grommunio/ 
 
+EXPOSE 8443
+
 ENTRYPOINT ["/usr/bin/supervisord"]
 

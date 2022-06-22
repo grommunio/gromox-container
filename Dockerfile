@@ -24,6 +24,8 @@ WORKDIR /
 
 COPY   ./config_files/ssl_certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
 
+#COPY   ./config_files/autodiscover.conf /usr/share/grommunio-common/nginx/locations.d/autodiscover.conf
+
 COPY   ./config_files/*.cfg  /etc/gromox/
 
 COPY   ./config_files/g-alias.cf ./config_files/g-virt.cf /etc/postfix/ 
@@ -31,5 +33,7 @@ COPY   ./config_files/g-alias.cf ./config_files/g-virt.cf /etc/postfix/
 # Set up PHP FPM service
 RUN mv /etc/php/7.4/fpm/pool.d/www.conf /etc/php/7.4/fpm/pool.d/www.conf.bak && \
        service php7.4-fpm start
+
+EXPOSE 5000
 
 CMD ["tail", "-f", "/dev/null"]
