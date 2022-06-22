@@ -60,4 +60,7 @@ location /api/v1 {
 }
 ```
   * We need to change from using a local unix socket to a TCP port
-
+  ```
+   just append --http-socket :5001 to the uwsgi call. it will then listen on 0.0.0.0:5001 (choose any port you want)
+  ```
+  * Don't forget to update the nginx proxy above
