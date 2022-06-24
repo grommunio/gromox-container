@@ -17,6 +17,9 @@ services:
     build:
       context: .
       dockerfile: nginx.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - gromox-network
   admin-api:

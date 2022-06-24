@@ -24,7 +24,7 @@ WORKDIR /
 
 COPY   ./config_files/ssl_certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
 
-#COPY   ./config_files/autodiscover.conf /usr/share/grommunio-common/nginx/locations.d/autodiscover.conf
+COPY   ./config_files/gromox.conf /usr/share/grommunio-common/nginx/upstreams.d/gromox.conf
 
 COPY   ./config_files/*.cfg  /etc/gromox/
 
