@@ -17,6 +17,8 @@ services:
     build:
       context: .
       dockerfile: nginx.Dockerfile
+    ports:
+      - "5050:443"
     depends_on:
       db:
         condition: service_healthy

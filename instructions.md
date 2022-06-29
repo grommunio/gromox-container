@@ -40,4 +40,11 @@ systemctl reload docker
 * Idea: Find a way to automate the set up of `grommunio-admin passwd`
 * Idea: Automate the distribution of db pass
 * Idea: Automate the generation of ssl cert
+* Setup redis instance, tell admin api where it is running
+```
+you can drop YAML files into /etc/grommunio-admin-api/conf.d/
 
+sync:
+  connection:
+    host: <hostname>
+```
