@@ -14,11 +14,11 @@ RUN curl -fsSL https://download.grommunio.com/RPM-GPG-KEY-grommunio | gpg --dear
 
 # Set up NGINX
 
-WORKDIR /home/certificates
+#WORKDIR /home/certificates
 
-COPY ./tls_keys .
+#COPY ./tls_keys .
 
-WORKDIR /
+#WORKDIR /
 
 # Set up config files
 

@@ -29,6 +29,8 @@ services:
         condition: service_healthy
     networks:
       - gromox-network
+    volumes:
+      - tls-certs:/home/certificates
   admin-api:
     container_name: admin-api
     build:
@@ -41,6 +43,8 @@ services:
         condition: service_healthy
     networks:
       - gromox-network
+    volumes:
+      - tls-certs:/home/certificates
   init-db:
     container_name: init-db
     build:
@@ -58,6 +62,8 @@ services:
       dockerfile: mail.Dockerfile
     networks:
       - gromox-network
+    volumes:
+      - tls-certs:/home/certificates
   delivery:
     container_name: delivery
     build:
@@ -65,6 +71,8 @@ services:
       dockerfile: delivery.Dockerfile
     networks:
       - gromox-network
+    volumes:
+      - tls-certs:/home/certificates
   gromox-http:
     build:
       context: .
@@ -75,17 +83,8 @@ services:
         condition: service_healthy
     networks:
       - gromox-network
-  # this is a gromox test container 
-  gromox:
-    build: .
-    hostname: mail.testing.com
-    #restart: always
-    container_name: gromox
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - gromox-network
+    volumes:
+      - tls-certs:/home/certificates
 networks:
   gromox-network: 
     driver: bridge
@@ -96,4 +95,9 @@ networks:
         gateway: 172.16.238.1
       - subnet: 2001:3984:3989::/64
         gateway: 2001:3984:3989::1
-
+volumes:
+  tls-certs:
+      driver_opts:
+        type: none
+        device: ${PWD}/tls_keys
+        o: bind
