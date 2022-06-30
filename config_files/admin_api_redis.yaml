@@ -1,0 +1,3 @@
+sync:
+  connection:
+    host: redis

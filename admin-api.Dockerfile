@@ -4,9 +4,9 @@ RUN apt-get update && apt-get -y install grommunio-admin-api grommunio-admin-web
 
 COPY ./config_files/admin_api_supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-#COPY ./config_files/api.conf  /usr/share/grommunio-admin-common/nginx.d/api.conf
-
 COPY ./config_files/admin_api_db.yaml /etc/grommunio-admin-api/conf.d/database.yaml
+
+COPY ./config_files/admin_api_redis.yaml /etc/grommunio-admin-api/conf.d/redis.yaml
 
 RUN chown root:gromox /etc/gromox && \ 
     chmod 775 /etc/gromox && \
