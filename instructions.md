@@ -41,8 +41,8 @@ systemctl reload docker
   * Use volumes to share db filesystem
 * Idea: Find a way to automate the set up of `grommunio-admin passwd`
 * Idea: Automate the distribution of db pass:
-  * db env variable are passed as env variables to the base container.
-  * base container has a script to set up those variables
+  * main script contains functions to db functions
+    * create child scripts to import this main script and only run the necessary ones
 * Idea: Automate the generation of ssl cert
 * Setup redis instance, tell admin api where it is running: done
 * Move to Suse
