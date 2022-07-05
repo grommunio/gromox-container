@@ -24,6 +24,8 @@ services:
       dockerfile: nginx.Dockerfile
     ports:
       - "5050:443"
+    env_file:
+      - ./env_files/db.env
     depends_on:
       db:
         condition: service_healthy
@@ -38,6 +40,7 @@ services:
       dockerfile: admin-api.Dockerfile
     env_file:
       - ./env_files/admin_api.env
+      - ./env_files/db.env
     depends_on:
       db:
         condition: service_healthy
@@ -53,6 +56,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    env_file:
+      - ./env_files/db.env
     networks:
       - gromox-network
   mail:
@@ -62,6 +67,8 @@ services:
       dockerfile: mail.Dockerfile
     networks:
       - gromox-network
+    env_file:
+      - ./env_files/db.env
     volumes:
       - tls-certs:/home/certificates
   delivery:
@@ -71,6 +78,8 @@ services:
       dockerfile: delivery.Dockerfile
     networks:
       - gromox-network
+    env_file:
+      - ./env_files/db.env
     volumes:
       - tls-certs:/home/certificates
   gromox-http:
@@ -83,6 +92,8 @@ services:
         condition: service_healthy
     networks:
       - gromox-network
+    env_file:
+      - ./env_files/db.env
     volumes:
       - tls-certs:/home/certificates
 networks:
