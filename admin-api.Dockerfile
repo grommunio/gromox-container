@@ -1,6 +1,8 @@
 FROM olam1k0/grommunio:latest
 
-RUN apt-get update && apt-get -y install grommunio-admin-api grommunio-admin-web 
+RUN apt-get update && apt-get -y install nginx grommunio-admin-api grommunio-admin-web 
+
+COPY   ./config_files/ssl_certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
 
 COPY ./config_files/admin_api_supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 

@@ -36,11 +36,16 @@ systemctl reload docker
   * run `service php7.4-fpm start` to generate a pid file
   * run `php-fpm7.4`
 
-* Idea: Use volumes for shared filesystem
+* Idea: Use volumes for shared filesystem: 
+  * Use volumes to store certificates: done
+  * Use volumes to share db filesystem
 * Idea: Find a way to automate the set up of `grommunio-admin passwd`
-* Idea: Automate the distribution of db pass
+* Idea: Automate the distribution of db pass:
+  * db env variable are passed as env variables to the base container.
+  * base container has a script to set up those variables
 * Idea: Automate the generation of ssl cert
-* Setup redis instance, tell admin api where it is running
+* Setup redis instance, tell admin api where it is running: done
+* Move to Suse
 ```
 you can drop YAML files into /etc/grommunio-admin-api/conf.d/
 
