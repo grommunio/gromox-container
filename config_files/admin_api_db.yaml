@@ -1,5 +1,0 @@
-DB:
-  host: 'db'
-  user: 'grommunio'
-  pass: 'my_cool_secret'
-  database: 'grommunio'

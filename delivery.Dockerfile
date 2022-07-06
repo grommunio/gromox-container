@@ -8,7 +8,7 @@ RUN postconf -e virtual_alias_maps=mysql:/etc/postfix/g-alias.cf && \
 
 COPY ./config_files/delivery_supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-COPY   ./config_files/g-alias.cf ./config_files/g-virt.cf /etc/postfix/ 
+COPY ./shell_files/db.sh ./shell_files/delivery.sh /scripts/
 
 EXPOSE 24
 

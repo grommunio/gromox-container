@@ -55,7 +55,9 @@ generate_admin_db_conf(){
    echo "  ${elem}: '${INPUTS[${elem}]}'" >> ${FILENAME}
   done
 }
-#generate_mysql_adaptor_conf "/etc/gromox/mysql_adaptor.cfg"
+
+generate_mysql_adaptor_conf "/etc/gromox/mysql_adaptor.cfg"
+
 #generate_g_cf_files "/etc/gromox/g-alias.cf" "SELECT mainname FROM aliases WHERE aliasname='%s'"
 #generate_g_cf_files "/etc/gromox/g-virt.cf" "SELECT 1 FROM domains WHERE domain_status=0 AND domainname='%s'"
 #generate_admin_db_conf "/etc/grommunio-admin-api/conf.d/database.yaml"

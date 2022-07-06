@@ -48,18 +48,6 @@ services:
       - gromox-network
     volumes:
       - tls-certs:/home/certificates
-  init-db:
-    container_name: init-db
-    build:
-      context: .
-      dockerfile: init-db.Dockerfile
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file:
-      - ./env_files/db.env
-    networks:
-      - gromox-network
   mail:
     container_name: mail
     build:
