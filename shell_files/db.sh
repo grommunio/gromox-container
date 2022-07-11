@@ -9,6 +9,7 @@ generate_mysql_adaptor_conf(){
    [mysql_username]=$MARIADB_USER
    [mysql_password]=$MARIADB_PASSWORD
    [mysql_dbname]=$MARIADB_DATABASE
+   [mysql_host]=$DB_HOST
   )
   
   : > ${FILENAME}
