@@ -53,3 +53,7 @@ sync:
   connection:
     host: <hostname>
 ```
+
+* set up grommunio web container
+  * configure admin web to see it as stefan aki wrote
+
