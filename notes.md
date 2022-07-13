@@ -57,3 +57,6 @@ sync:
 * set up grommunio web container
   * configure admin web to see it as stefan aki wrote
 
+* Rewrite grom-web's grommunio-web conf file to stop redirecting
+
+* Start antispam on admin-api
