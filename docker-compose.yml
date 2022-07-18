@@ -84,22 +84,22 @@ services:
       - ./env_files/db.env
     volumes:
       - tls-certs:/home/certificates
-  grom-web:
-    build:
-      context: .
-      dockerfile: grom-web.Dockerfile
-    container_name: grom-web
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "5051:443"
-    networks:
-      - gromox-network
-    env_file:
-      - ./env_files/db.env
-    volumes:
-      - tls-certs:/home/certificates
+  #grom-web:
+  #  build:
+  #    context: .
+  #    dockerfile: grom-web.Dockerfile
+  #  container_name: grom-web
+  #  depends_on:
+  #    db:
+  #      condition: service_healthy
+  #  ports:
+  #    - "5051:443"
+  #  networks:
+  #    - gromox-network
+  #  env_file:
+  #   - ./env_files/db.env
+  #  volumes:
+  #    - tls-certs:/home/certificates
 networks:
   gromox-network: 
     driver: bridge

@@ -1,0 +1,6 @@
+sync:
+  connection:
+    host: redis
+
+options:
+  antispamUrl: http://delivery:11334
