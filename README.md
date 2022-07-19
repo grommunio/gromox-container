@@ -1,9 +1,13 @@
-# Grommunio Single-node container deployment (Debian)
+# Grommunio Deployment on K8s 
 
-This is the project prototype for running Grommunio using docker-compose
+This is the project prototype for running Grommunio on k8s
 
 
 ## Setup Instructions 
+
+* Ensure that you have a running k8s cluster. 
+  * You can test with single-node clusters like [minikube](https://minikube.sigs.k8s.io/docs/start/) or [KIND](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
+  * For testing, we use KIND
 
 * Enable ipv6 kernel module
   * Edit /etc/docker/daemon.json, set the ipv6 key to true and the fixed-cidr-v6 key to your IPv6 subnet. In this example we are setting it to 2001:db8:1::/64.
