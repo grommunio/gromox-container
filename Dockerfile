@@ -1,23 +1,19 @@
-FROM debian:11-slim
+FROM opensuse/leap:15.3
 
-ARG DEBIAN_FRONTEND=noninteractive
+RUN zypper install -y curl && \
+      curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
+      rpm --import gr.key && \
+      zypper --non-interactive --quiet ar -C https://download.grommunio.com/community/openSUSE_Leap_15.3 grommunio && \
+      zypper --gpg-auto-import-keys ref && \
+      zypper -n refresh grommunio && \
+      zypper in -y gromox grommunio-common mariadb-client
 
-ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+#COPY   ./config_files/*.cfg  /etc/gromox/
 
-RUN apt-get update && apt-get install -y curl gnupg supervisor 
-
-ENV KEYRING=/usr/share/keyrings/grommunio.gpg
-
-RUN curl -fsSL https://download.grommunio.com/RPM-GPG-KEY-grommunio | gpg --dearmor | tee "$KEYRING" > /dev/null && \
-      echo "deb [signed-by="$KEYRING"] https://download.grommunio.com/community/Debian_11 Debian_11 main" > /etc/apt/sources.list.d/grommunio.list && \
-      apt-get update && apt-get install -y gromox grommunio-common mariadb-client
-
-COPY   ./config_files/*.cfg  /etc/gromox/
-
-EXPOSE 5000
+#EXPOSE 5000
 
 # Set up PHP FPM service
-RUN mv /etc/php/7.4/fpm/pool.d/www.conf /etc/php/7.4/fpm/pool.d/www.conf.bak && \
-       service php7.4-fpm start
+#RUN mv /etc/php/7.4/fpm/pool.d/www.conf /etc/php/7.4/fpm/pool.d/www.conf.bak && \
+#       service php7.4-fpm start
 
 CMD ["tail", "-f", "/dev/null"]
