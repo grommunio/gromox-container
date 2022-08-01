@@ -14,18 +14,13 @@ spec:
       labels:
         app: gromox
     spec:
-      - name: init-mydb
-        image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "gromox-dbop -C"]
-        envFrom:
-        - configMapRef:
-            name: db-config
       containers:
       - name: gromox-http
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/usr/libexec/gromox/http"]
         ports:
-        - containerPort: 10080,10443
+        - containerPort: 10080
+        - containerPort: 10443
         envFrom:
         - configMapRef:
             name: db-config
@@ -33,7 +28,7 @@ spec:
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/usr/libexec/gromox/timer"]
         ports:
-        - containerPort: 
+        - containerPort: 6666 
         envFrom:
         - configMapRef:
             name: db-config
@@ -47,7 +42,8 @@ spec:
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "nginx -g daemon off;"]
         ports:
-        - containerPort: 80,443
+        - containerPort: 80
+        - containerPort: 443
         envFrom:
         - configMapRef:
             name: db-config

@@ -27,4 +27,7 @@ COPY ./shell_files/* /scripts/
 #RUN mv /etc/php/7.4/fpm/pool.d/www.conf /etc/php/7.4/fpm/pool.d/www.conf.bak && \
 #       service php7.4-fpm start
 
+#ENTRYPOINT ["sh", "-c", "/scripts/db.sh"]
+
 CMD ["tail", "-f", "/dev/null"]
+

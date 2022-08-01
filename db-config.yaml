@@ -3,6 +3,7 @@ kind: ConfigMap
 metadata:
   name: db-config
 data:
+  DB_HOST: db-service
   MARIADB_USER: grommunio
   MARIADB_PASSWORD: my_cool_secret 
   MARIADB_ROOT_PASSWORD: my-secret-pw
