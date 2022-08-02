@@ -15,90 +15,59 @@ spec:
         app: gromox
     spec:
       containers:
-      - name: gromox-http
+      - name: gromox-event
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/usr/libexec/gromox/http"]
+        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/event"]
         ports:
-        - containerPort: 10080
-        - containerPort: 10443
+        - containerPort: 33333 
         envFrom:
         - configMapRef:
             name: db-config
       - name: gromox-timer
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/usr/libexec/gromox/timer"]
+        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/timer"]
         ports:
         - containerPort: 6666 
         envFrom:
         - configMapRef:
             name: db-config
-      - name: gromox-php
+      - name: gromox-zcore
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "php-fpm8.0"]
+        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/zcore"]
+        envFrom:
+        - configMapRef:
+            name: db-config
+      - name: gromox-midb
+        image: olam1k0/gromox-suse:latest
+        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/midb"]
         envFrom:
         - configMapRef:
             name: db-config
       - name: gromox-nginx
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "nginx -g daemon off;"]
+        command: ['sh', '-c', "/scripts/db.sh && nginx -g 'daemon off;'"]
         ports:
         - containerPort: 80
         - containerPort: 443
         envFrom:
         - configMapRef:
             name: db-config
-      - name: gromox-postfix
+        volumeMounts:
+        - name: ssl-volume
+          mountPath: /home/certificates
+      - name: gromox-http
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "postfix start"]
-        envFrom:
-        - configMapRef:
-            name: db-config
-      - name: gromox-zcore
-        image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/usr/libexec/gromox/zcore"]
-        envFrom:
-        - configMapRef:
-            name: db-config
-      - name: gromox-delivery-queue
-        image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/usr/libexec/gromox/delivery-queue"]
-        envFrom:
-        - configMapRef:
-            name: db-config
-      - name: gromox-delivery
-        image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/usr/libexec/gromox/delivery"]
-        envFrom:
-        - configMapRef:
-            name: db-config
-      - name: gromox-midb
-        image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/usr/libexec/gromox/midb"]
-        envFrom:
-        - configMapRef:
-            name: db-config
-      - name: gromox-event
-        image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/usr/libexec/gromox/event"]
-        envFrom:
-        - configMapRef:
-            name: db-config
-      - name: gromox-pop3
-        image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/usr/libexec/gromox/pop3"]
+        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/http"]
         ports:
-        - containerPort: 995
+        - containerPort: 10080
+        - containerPort: 10443
         envFrom:
         - configMapRef:
             name: db-config
-      - name: gromox-imap
-        image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/usr/libexec/gromox/imap"]
-        ports:
-        - containerPort: 993
-        envFrom:
-        - configMapRef:
-            name: db-config
+      volumes:
+      - name: ssl-volume
+        configMap:
+          name: ssl-config
 ---
 apiVersion: v1
 kind: Service
