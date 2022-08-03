@@ -64,6 +64,9 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
+        volumeMounts:
+        - name: ssl-volume
+          mountPath: /home/certificates
       volumes:
       - name: ssl-volume
         configMap:
