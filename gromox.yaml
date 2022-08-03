@@ -43,6 +43,17 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
+      - name: gromox-php
+        image: olam1k0/gromox-suse:latest
+        command: ['sh', '-c']
+        args:
+           - /scripts/db.sh && 
+             mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf && 
+             php-fpm &&
+             tail -f /dev/null
+        envFrom:
+        - configMapRef:
+            name: db-config
       - name: gromox-nginx
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/scripts/db.sh && nginx -g 'daemon off;'"]
@@ -61,6 +72,46 @@ spec:
         ports:
         - containerPort: 10080
         - containerPort: 10443
+        envFrom:
+        - configMapRef:
+            name: db-config
+        volumeMounts:
+        - name: ssl-volume
+          mountPath: /home/certificates
+      - name: gromox-postfix
+        image: olam1k0/gromox-suse:latest
+        command: ['sh', '-c', "/scripts/db.sh && postfix start && tail -f /dev/null"]
+        envFrom:
+        - configMapRef:
+            name: db-config
+      - name: gromox-delivery-queue
+        image: olam1k0/gromox-suse:latest
+        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/delivery-queue"]
+        envFrom:
+        - configMapRef:
+            name: db-config
+      - name: gromox-delivery
+        image: olam1k0/gromox-suse:latest
+        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/delivery"]
+        envFrom:
+        - configMapRef:
+            name: db-config
+      - name: gromox-pop3
+        image: olam1k0/gromox-suse:latest
+        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/pop3"]
+        ports:
+        - containerPort: 995
+        envFrom:
+        - configMapRef:
+            name: db-config
+        volumeMounts:
+        - name: ssl-volume
+          mountPath: /home/certificates
+      - name: gromox-imap
+        image: olam1k0/gromox-suse:latest
+        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/imap"]
+        ports:
+        - containerPort: 993
         envFrom:
         - configMapRef:
             name: db-config
