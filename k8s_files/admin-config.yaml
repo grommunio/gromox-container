@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: admin-config
+data:
+  ADMIN_PASS: admin_pass

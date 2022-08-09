@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#DB_HOST='db-service'
-
 generate_mysql_adaptor_conf(){
   FILENAME=$1 
   
