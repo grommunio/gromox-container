@@ -43,18 +43,18 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
-      - name: gromox-nginx
-        image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/scripts/db.sh && nginx -g 'daemon off;'"]
-        ports:
-        - containerPort: 80
-        - containerPort: 443
-        envFrom:
-        - configMapRef:
-            name: db-config
-        volumeMounts:
-        - name: ssl-volume
-          mountPath: /home/certificates
+      #- name: gromox-nginx
+      #  image: olam1k0/gromox-suse:latest
+      #  command: ['sh', '-c', "/scripts/db.sh && nginx -g 'daemon off;'"]
+      #  ports:
+      #  - containerPort: 80
+      #  - containerPort: 443
+      #  envFrom:
+      #  - configMapRef:
+      #      name: db-config
+      #  volumeMounts:
+      #  - name: ssl-volume
+      #    mountPath: /home/certificates
       - name: gromox-http
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c']
@@ -120,10 +120,13 @@ spec:
              mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf && 
              php-fpm && 
              grommunio-admin passwd -p $ADMIN_PASS &&
-             uwsgi --ini /usr/share/grommunio-admin-api/api-config.ini 
+             uwsgi --ini /usr/share/grommunio-admin-api/api-config.ini &&
+             nginx -g 'daemon off;'
              #&& chown www-data:www-data /var/run/grommunio/admin-api.socket
         ports:
         - containerPort: 8443
+        - containerPort: 80
+        - containerPort: 443
         envFrom:
         - configMapRef:
             name: db-config
