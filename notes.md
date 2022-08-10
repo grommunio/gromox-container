@@ -64,3 +64,4 @@ sync:
 * Use volumes to mount /etc/gromox too
 
 * Use init container to setup mariadb
+  * Run this container everytime mariadb restarts

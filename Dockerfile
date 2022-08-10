@@ -6,7 +6,7 @@ RUN zypper install -y curl && \
       zypper --non-interactive --quiet ar -C https://download.grommunio.com/community/openSUSE_Leap_15.3 grommunio && \
       zypper --gpg-auto-import-keys ref && \
       zypper -n refresh grommunio && \
-      zypper in -y gromox grommunio-common mariadb-client nginx nginx-module-vts nginx-module-brotli nginx-module-zstd postfix postfix-mysql gdb gromox-debuginfo gromox-debugsource glibc-locale-base grommunio-admin-api grommunio-admin-web
+      zypper in -y gromox grommunio-common mariadb-client nginx nginx-module-vts nginx-module-brotli nginx-module-zstd postfix postfix-mysql grommunio-admin-api grommunio-admin-web grommunio-web vim
 
 RUN postconf -e virtual_alias_maps=mysql:/etc/postfix/g-alias.cf && \
     postconf -e virtual_mailbox_domains=mysql:/etc/postfix/g-virt.cf && \

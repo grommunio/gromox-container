@@ -121,8 +121,8 @@ spec:
              php-fpm && 
              grommunio-admin passwd -p $ADMIN_PASS &&
              uwsgi --ini /usr/share/grommunio-admin-api/api-config.ini --daemonize /var/log/admin-api.log &&
+             chown nginx:nginx /run/grommunio/admin-api.socket &&
              nginx -g 'daemon off;'
-             #&& chown www-data:www-data /var/run/grommunio/admin-api.socket
         ports:
         - containerPort: 8443
         - containerPort: 80
@@ -156,3 +156,7 @@ spec:
     protocol: TCP
     port: 443
     targetPort: 443
+  - name: admin
+    protocol: TCP
+    port: 8443
+    targetPort: 8443
