@@ -120,7 +120,7 @@ spec:
              mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf && 
              php-fpm && 
              grommunio-admin passwd -p $ADMIN_PASS &&
-             uwsgi --ini /usr/share/grommunio-admin-api/api-config.ini &&
+             uwsgi --ini /usr/share/grommunio-admin-api/api-config.ini --daemonize /var/log/admin-api.log &&
              nginx -g 'daemon off;'
              #&& chown www-data:www-data /var/run/grommunio/admin-api.socket
         ports:
