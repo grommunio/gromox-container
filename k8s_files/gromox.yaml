@@ -43,18 +43,6 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
-      #- name: gromox-nginx
-      #  image: olam1k0/gromox-suse:latest
-      #  command: ['sh', '-c', "/scripts/db.sh && nginx -g 'daemon off;'"]
-      #  ports:
-      #  - containerPort: 80
-      #  - containerPort: 443
-      #  envFrom:
-      #  - configMapRef:
-      #      name: db-config
-      #  volumeMounts:
-      #  - name: ssl-volume
-      #    mountPath: /home/certificates
       - name: gromox-http
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c']
@@ -135,10 +123,16 @@ spec:
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
+        #- name: admin-plugins-volume
+        #  mountPath: /etc/grommunio-admin-api/conf.d 
+        #  subPath: conf.yaml
       volumes:
       - name: ssl-volume
         configMap:
           name: ssl-config
+      - name: admin-plugins-volume
+        configMap:
+          name: admin-plugins-config
 ---
 apiVersion: v1
 kind: Service

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: admin-plugins-config
+data:
+  conf.yaml: |
+    sync:
+      connection:
+        host: redis-service
+
+
