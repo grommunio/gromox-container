@@ -8,18 +8,33 @@
 
 * Create the config map for the database on the cluster using:
   ```
-  kubectl apply -f db-config
+  kubectl apply -f db-config.yaml
   ```
   You can edit this file to specify your database parameters. 
 
 * Create the config map containing the ssl certificates. 
   ```
-  kubectl apply -f ssl-config
+  kubectl apply -f ssl-config.yaml
   ```
   
+* Create the config map containing the redis configuration. 
+  ```
+  kubectl apply -f redis-config.yaml
+  ```
+
 * Create the config map containing the password for the Grommunio Admin API. 
   ```
-  kubectl apply -f admin-config
+  kubectl apply -f admin-config.yaml
+  ```
+
+* Create the config map containing the Redis configuration for the Grommunio Admin API. 
+  ```
+  kubectl apply -f admin-plugins-config.yaml
+  ```
+
+* Set up Redis.
+  ```
+  kubectl apply -f redis.yaml
   ```
 
 * Set up the database. You can also bring your database, just configure it in the `db-config.yaml`
