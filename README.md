@@ -30,19 +30,7 @@ systemctl reload docker
   ```
   openssl req -x509 -nodes -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -subj '/CN=*.testing.com'
   ```
-* Change the database settings in `./env_files/db.env`. Keep MARIADB_USER and MARIADB_DATABASE as `grommunio`. Change the passwords as you deem fit
-
-* Since you are going to use the admin-web as well, set up a password for your admin user in `./env_files/admin_api.env`
 
 ## Getting started
 
-* Run with the following commands:
-  ```
-  docker compose up -d --build
-  ```
-
-* Access containers using `docker exec`
-
-## Caveats
-
-* This project is still in the prototype stage which means a lot of things will be automated in the future e.g., configuration.
+* Check the README in the k8s_files directory. 

@@ -27,9 +27,14 @@
   kubectl apply -f admin-config.yaml
   ```
 
-* Create the config map containing the Redis configuration for the Grommunio Admin API. 
+* Create the config map containing the redis plugin configuration for the Grommunio Admin API. 
   ```
   kubectl apply -f admin-plugins-config.yaml
+  ```
+
+* Create the config map containing the links configuration for the Grommunio Admin API. 
+  ```
+  kubectl apply -f admin-links-config.yaml
   ```
 
 * Set up Redis.
@@ -56,11 +61,11 @@
   ```
   kubectl port-forward service/gromox-service 5050:443
   ```
-  Then access the GUI with `https://<your ip>:5050`
+  Then access the GUI with `https://<your ip>:5050/web/`
 
 * Grommunio admin is available by running the following command (for now, it will be resolved in the soon):
   ```
   kubectl port-forward service/gromox-service 5000:8443
   ```
-  Then access the GUI with `https://<your ip>:5000`
+  Then access the GUI with `https://<your ip>:5000/web/`
 
