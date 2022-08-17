@@ -109,6 +109,8 @@ spec:
              php-fpm && 
              grommunio-admin passwd -p $ADMIN_PASS &&
              ln -s /home/redis/conf.yaml /etc/grommunio-admin-api/conf.d/conf.yaml &&
+             ln -s /home/links/config.json /etc/grommunio-admin-common/config.json &&
+             ln -s /home/links/web-config.conf /etc/grommunio-admin-common/nginx.d/web-config.conf &&
              uwsgi --ini /usr/share/grommunio-admin-api/api-config.ini --daemonize /var/log/admin-api.log &&
              chown nginx:nginx /run/grommunio/admin-api.socket &&
              nginx -g 'daemon off;'
@@ -126,6 +128,8 @@ spec:
           mountPath: /home/certificates
         - name: admin-plugins-volume
           mountPath: /home/redis 
+        - name: admin-links-volume
+          mountPath: /home/links 
       volumes:
       - name: ssl-volume
         configMap:
@@ -133,6 +137,9 @@ spec:
       - name: admin-plugins-volume
         configMap:
           name: admin-plugins-config
+      - name: admin-links-volume
+        configMap:
+          name: admin-links-config
 ---
 apiVersion: v1
 kind: Service

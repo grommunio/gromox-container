@@ -7,5 +7,3 @@ data:
     sync:
       connection:
         host: redis-service
-
-

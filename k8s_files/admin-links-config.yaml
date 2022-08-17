@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: admin-links-config
+data:
+  config.json: |
+    {
+      "mailWebAddress": "https://192.168.84.128:5050/web",
+        "chatWebAddress": "https://mail.example.com/chat",
+        "videoWebAddress": "https://mail.example.com/meet",
+        "fileWebAddress": "https://mail.example.com/files",
+        "archiveWebAddress": "https://mail.example.com/archive"
+    }
+  web-config.conf: |
+    location /config.json {
+      alias /etc/grommunio-admin-common/config.json;
+    }
