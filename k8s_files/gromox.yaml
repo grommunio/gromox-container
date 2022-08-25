@@ -100,6 +100,20 @@ spec:
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
+      - name: gromox-antispam
+        image: olam1k0/gromox-suse:latest
+        command: ['sh', '-c']
+        args:
+           - mkdir -p /var/run/grommunio-antispam &&
+             rspamd -u groas -g grommunio &&
+             redis-server &&
+             tail -f /dev/null
+        envFrom:
+        - configMapRef:
+            name: db-config
+        volumeMounts:
+        - name: ssl-volume
+          mountPath: /home/certificates
       - name: gromox-admin
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c']
