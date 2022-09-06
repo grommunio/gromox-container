@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-mariadb-deployment
+spec:
+  replicas: 1 
+  selector:
+    matchLabels:
+      app: chat-mariadb
+  template: 
+    metadata:
+      labels:
+        app: chat-mariadb 
+    spec: 
+      containers: 
+      - name: chat-mariadb
+        image: mariadb
+        ports:
+        - containerPort: 3306 
+        envFrom:
+        - configMapRef:
+            name: chat-db-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-db-service
+spec:
+  selector:
+    app: chat-mariadb
+  ports:
+  - name: chat-db
+    protocol: TCP
+    port: 3306
+    targetPort: 3306

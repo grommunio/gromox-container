@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chat-db-config
+data:
+  DB_HOST: chat-db-service
+  MARIADB_USER: grochat
+  MARIADB_PASSWORD: my_cool_secret 
+  MARIADB_ROOT_PASSWORD: my-secret-pw
+  MARIADB_DATABASE: grochat

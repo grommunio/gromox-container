@@ -7,3 +7,14 @@ data:
     sync:
       connection:
         host: redis-service
+  chat.yaml: |
+    chat:
+    connection:
+      login_id: admin
+      password: '${CHAT_ADMIN_PASS}'
+      url: ${FQDN}
+      basepath: /chat/api/v4
+      port: 443
+      scheme: https
+      verify: False
+

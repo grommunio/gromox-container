@@ -10,7 +10,7 @@ kubectl apply -f admin-plugins-config.yaml
 kubectl apply -f admin-links-config.yaml
 kubectl apply -f redis.yaml
 kubectl apply -f db.yaml
-sleep 40s
+sleep 60s
 kubectl apply -f init-db.yaml
 sleep 90s
 kubectl apply -f gromox.yaml

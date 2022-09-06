@@ -144,6 +144,20 @@ spec:
           mountPath: /home/redis 
         - name: admin-links-volume
           mountPath: /home/links 
+      
+      - name: gromox-chat
+        image: olam1k0/gromox-suse:latest
+        command: ['sh', '-c']
+        args:
+           - /scripts/admin-db.sh && 
+        envFrom:
+        - configMapRef:
+            name: chat-db-config
+        #- configMapRef:
+        #    name: admin-config
+        volumeMounts:
+        - name: ssl-volume
+          mountPath: /home/certificates
       volumes:
       - name: ssl-volume
         configMap:
