@@ -145,19 +145,21 @@ spec:
         - name: admin-links-volume
           mountPath: /home/links 
       
-      - name: gromox-chat
-        image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c']
-        args:
-           - /scripts/admin-db.sh && 
-        envFrom:
-        - configMapRef:
-            name: chat-db-config
+      #- name: gromox-chat
+      #  image: olam1k0/gromox-suse:latest
+      #  command: ['sh', '-c']
+      #  args:
+      #     - /scripts/admin-db.sh && 
+      #  envFrom:
+      #  - configMapRef:
+      #      name: chat-db-config
         #- configMapRef:
         #    name: admin-config
-        volumeMounts:
-        - name: ssl-volume
-          mountPath: /home/certificates
+        #volumeMounts:
+        #- name: ssl-volume
+        #  mountPath: /home/certificates
+        #- name: chat-setup-volume
+        #  mountPath: /home  
       volumes:
       - name: ssl-volume
         configMap:
@@ -168,6 +170,9 @@ spec:
       - name: admin-links-volume
         configMap:
           name: admin-links-config
+      - name: chat-setup-volume
+        configMap:
+          name: chat-setup-config
 ---
 apiVersion: v1
 kind: Service
