@@ -23,6 +23,8 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
       - name: gromox-timer
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/timer"]
@@ -31,18 +33,24 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
       - name: gromox-zcore
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/zcore"]
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
       - name: gromox-midb
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/midb"]
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
       - name: gromox-http
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c']
@@ -57,6 +65,8 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
@@ -66,18 +76,24 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
       - name: gromox-delivery-queue
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/delivery-queue"]
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
       - name: gromox-delivery
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/delivery"]
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
       - name: gromox-pop3
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/pop3"]
@@ -86,6 +102,8 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
@@ -97,6 +115,8 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
@@ -111,6 +131,8 @@ spec:
         envFrom:
         - configMapRef:
             name: db-config
+        - configMapRef:
+            name: general-config
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
@@ -136,7 +158,7 @@ spec:
         - configMapRef:
             name: db-config
         - configMapRef:
-            name: admin-config
+            name: general-config
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
@@ -154,8 +176,8 @@ spec:
       #  envFrom:
       #  - configMapRef:
       #      name: chat-db-config
-        #- configMapRef:
-        #    name: admin-config
+      #  - configMapRef:
+      #      name: general-config
         #volumeMounts:
         #- name: ssl-volume
         #  mountPath: /home/certificates
