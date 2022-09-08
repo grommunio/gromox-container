@@ -12,4 +12,4 @@ data:
     chown -R grochat:grochat "/etc/grommunio-chat/" "/usr/share/grommunio-chat/logs" "/usr/share/grommunio-chat/config" "/var/log/grommunio-chat" "/var/lib/grommunio-chat/"
     chmod 644 ${CHAT_CONFIG}
 
-    MMCTL_LOCAL_SOCKET_PATH=/var/tmp/grommunio-chat_local.socket bin/grommunio-chat-ctl --local user create --email admin@${FQDN} --username admin --password "${CHAT_ADMIN_PASS}" --system-admin >>"${LOGFILE}" 2>&1
+    MMCTL_LOCAL_SOCKET_PATH=/var/tmp/grommunio-chat_local.socket bin/grommunio-chat-ctl --local user create --email admin@${FQDN} --username "${CHAT_ADMIN_USER}" --password "${CHAT_ADMIN_PASS}" --system-admin >>"${LOGFILE}" 2>&1
