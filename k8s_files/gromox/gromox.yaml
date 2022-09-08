@@ -144,9 +144,10 @@ spec:
              mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf && 
              php-fpm && 
              grommunio-admin passwd -p $ADMIN_PASS &&
-             ln -s /home/redis/conf.yaml /etc/grommunio-admin-api/conf.d/conf.yaml &&
+             ln -s /home/plugins/conf.yaml /etc/grommunio-admin-api/conf.d/conf.yaml &&
              ln -s /home/links/config.json /etc/grommunio-admin-common/config.json &&
              ln -s /home/links/web-config.conf /etc/grommunio-admin-common/nginx.d/web-config.conf &&
+             /home/plugins/chat-conf.sh &&
              uwsgi --ini /usr/share/grommunio-admin-api/api-config.ini --daemonize /var/log/admin-api.log &&
              chown nginx:nginx /run/grommunio/admin-api.socket &&
              nginx -g 'daemon off;'
@@ -163,26 +164,26 @@ spec:
         - name: ssl-volume
           mountPath: /home/certificates
         - name: admin-plugins-volume
-          mountPath: /home/redis 
+          mountPath: /home/plugins
         - name: admin-links-volume
           mountPath: /home/links 
       
-      #- name: gromox-chat
-      #  image: olam1k0/gromox-suse:latest
-      #  command: ['sh', '-c']
-      #  args:
-      #     - chmod +x /home/setup.sh &&
-      #       /home/setup.sh 
-      #  envFrom:
-      #  - configMapRef:
-      #      name: chat-db-config
-      #  - configMapRef:
-      #      name: general-config
-        #volumeMounts:
-        #- name: ssl-volume
-        #  mountPath: /home/certificates
-        #- name: chat-setup-volume
-        #  mountPath: /home  
+      - name: gromox-chat
+        image: olam1k0/gromox-suse:latest
+        command: ['sh', '-c']
+        args:
+           - chmod +x /home/setup.sh &&
+             /home/chat/setup.sh 
+        envFrom:
+        - configMapRef:
+            name: chat-db-config
+        - configMapRef:
+            name: general-config
+        volumeMounts:
+        - name: ssl-volume
+          mountPath: /home/certificates
+        - name: chat-setup-volume
+          mountPath: /home/chat
       volumes:
       - name: ssl-volume
         configMap:
@@ -190,12 +191,14 @@ spec:
       - name: admin-plugins-volume
         configMap:
           name: admin-plugins-config
+          defaultMode: 0777 
       - name: admin-links-volume
         configMap:
           name: admin-links-config
       - name: chat-setup-volume
         configMap:
           name: chat-setup-config
+          defaultMode: 0777
 ---
 apiVersion: v1
 kind: Service

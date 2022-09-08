@@ -7,14 +7,15 @@ data:
     sync:
       connection:
         host: redis-service
-  chat.yaml: |
-    chat:
-    connection:
-      login_id: $(CHAT_ADMIN_USER)
-      password: $(CHAT_ADMIN_PASS)
-      url: $(FQDN)
-      basepath: /chat/api/v4
-      port: 443
-      scheme: https
-      verify: False
-
+  chat-conf.sh: |
+    cat > /etc/grommunio-admin-api/conf.d/chat.yaml <<EOCHAT
+      chat:
+        connection:
+        login_id: ${CHAT_ADMIN_USER}
+        password: '${CHAT_ADMIN_PASS}'
+        url: ${FQDN}
+        basepath: /chat/api/v4
+        port: 443
+        scheme: https
+        verify: False
+    EOCHAT
