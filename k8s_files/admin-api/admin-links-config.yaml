@@ -3,14 +3,16 @@ kind: ConfigMap
 metadata:
   name: admin-links-config
 data:
-  config.json: |
-    {
-      "mailWebAddress": "https://192.168.84.128:5050/web",
-        "chatWebAddress": "https://mail.example.com/chat",
-        "videoWebAddress": "https://mail.example.com/meet",
-        "fileWebAddress": "https://mail.example.com/files",
-        "archiveWebAddress": "https://mail.example.com/archive"
-    }
+  config.sh: |
+    cat > /etc/grommunio-admin-common/config.json<<EOCONF
+      {
+          "mailWebAddress": "https://${FQDN}/web",
+          "chatWebAddress": "https://${FQDN}/chat",
+          "videoWebAddress": "https://${FQDN}/meet",
+          "fileWebAddress": "https://${FQDN}/files",
+          "archiveWebAddress": "https://${FQDN}/archive"
+      }
+    EOCONF
   web-config.conf: |
     location /config.json {
       alias /etc/grommunio-admin-common/config.json;

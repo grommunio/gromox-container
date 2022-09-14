@@ -145,7 +145,7 @@ spec:
              php-fpm && 
              grommunio-admin passwd -p $ADMIN_PASS &&
              ln -s /home/plugins/conf.yaml /etc/grommunio-admin-api/conf.d/conf.yaml &&
-             ln -s /home/links/config.json /etc/grommunio-admin-common/config.json &&
+             /home/links/config.sh &&
              ln -s /home/links/web-config.conf /etc/grommunio-admin-common/nginx.d/web-config.conf &&
              /home/plugins/chat-conf.sh &&
              uwsgi --ini /usr/share/grommunio-admin-api/api-config.ini --daemonize /var/log/admin-api.log &&
@@ -167,7 +167,6 @@ spec:
           mountPath: /home/plugins
         - name: admin-links-volume
           mountPath: /home/links 
-      
       - name: gromox-chat
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c']
@@ -195,6 +194,7 @@ spec:
       - name: admin-links-volume
         configMap:
           name: admin-links-config
+          defaultMode: 0777
       - name: chat-setup-volume
         configMap:
           name: chat-setup-config
