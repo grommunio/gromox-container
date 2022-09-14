@@ -9,8 +9,8 @@ data:
         host: redis-service
   chat-conf.sh: |
     cat > /etc/grommunio-admin-api/conf.d/chat.yaml <<EOCHAT
-      chat:
-        connection:
+    chat:
+      connection:
         login_id: ${CHAT_ADMIN_USER}
         password: '${CHAT_ADMIN_PASS}'
         url: ${FQDN}
