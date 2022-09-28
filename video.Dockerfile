@@ -6,7 +6,7 @@ RUN zypper install -y curl && \
       zypper --non-interactive --quiet ar -C https://download.grommunio.com/community/openSUSE_Leap_15.3 grommunio && \
       zypper --gpg-auto-import-keys ref && \
       zypper -n refresh grommunio && \
-      zypper in -y gromox grommunio-common mariadb-client nginx nginx-module-vts nginx-module-brotli nginx-module-zstd jitsi-meet
+      zypper in -y gromox grommunio-common mariadb-client nginx nginx-module-vts nginx-module-brotli nginx-module-zstd vim jitsi-meet
 
 COPY  ./config_files/*.cfg  /etc/gromox/
 
@@ -15,8 +15,7 @@ COPY   ./config_files/ssl_certificate.conf /etc/grommunio-common/nginx/ssl_certi
 COPY ./shell_files/* /scripts/
 
 RUN chown root:gromox /etc/gromox && \ 
-    chmod 775 /etc/gromox && \
-    ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf 
+    chmod 775 /etc/gromox 
 
 CMD ["tail", "-f", "/dev/null"]
 

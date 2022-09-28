@@ -6,6 +6,10 @@
   * set up admin-plugins-config to pull FQDN from an env var
 * Sort out line 439 - 441
 
+
+* Make DB data persistent after creation so even if deployment restarts, data stays
+
+
 ## Practices to incorporate
 * Use namespacees
 * Use Autoscaling

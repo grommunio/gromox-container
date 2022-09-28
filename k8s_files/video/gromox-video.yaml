@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: video-deployment
+spec:
+  replicas: 1 
+  selector:
+    matchLabels:
+      app: gromox-video
+  template: 
+    metadata:
+      labels:
+        app: gromox-video
+    spec: 
+      containers: 
+      - name: gromox-video
+        image: olam1k0/gromox-video
+        ports:
+        - containerPort: 80
+        envFrom:
+        - configMapRef:
+            name: general-config
+        volumeMounts:
+        - name: video-setup-volume
+          mountPath: /home/video
+      volumes:
+      - name: video-setup-volume
+        configMap:
+          name: video-setup-config
+          defaultMode: 0777
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: video-service
+spec:
+  selector:
+    app: gromox-video
+  ports:
+  - name: video
+    protocol: TCP
+    port: 80
+    targetPort: 80
