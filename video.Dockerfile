@@ -6,7 +6,7 @@ RUN zypper install -y curl && \
       zypper --non-interactive --quiet ar -C https://download.grommunio.com/community/openSUSE_Leap_15.3 grommunio && \
       zypper --gpg-auto-import-keys ref && \
       zypper -n refresh grommunio && \
-      zypper in -y gromox grommunio-common mariadb-client nginx nginx-module-vts nginx-module-brotli nginx-module-zstd vim jitsi-meet
+      zypper in -y gromox grommunio-common mariadb-client nginx nginx-module-vts nginx-module-brotli nginx-module-zstd vim jitsi-meet jitsi-videobridge jitsi-jicofo jitsi-jigasi jitsi-jibri
 
 COPY  ./config_files/*.cfg  /etc/gromox/
 
