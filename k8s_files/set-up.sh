@@ -14,4 +14,6 @@ sleep 60s
 kubectl apply -f init-db.yaml
 sleep 90s
 kubectl apply -f gromox.yaml
-
+sleep 60s
+helm repo add jitsi https://jitsi-contrib.github.io/jitsi-helm/
+helm install gromox-meet jitsi/jitsi-meet -f video/video-values.yml

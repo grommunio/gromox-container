@@ -10,6 +10,26 @@ data:
             CPUID="`ip a | grep -i link/ether | sha256sum | awk '{ print $1 }'`"
     fi
 
+    # set passwords
+
+    function generatePassword() {
+        openssl rand -hex 16
+    }
+
+    JICOFO_AUTH_PASSWORD=$(generatePassword)
+    JVB_AUTH_PASSWORD=$(generatePassword)
+    JIGASI_XMPP_PASSWORD=$(generatePassword)
+    JIBRI_RECORDER_PASSWORD=$(generatePassword)
+    JIBRI_XMPP_PASSWORD=$(generatePassword)
+
+    sed -i.bak \
+      -e "s#JICOFO_AUTH_PASSWORD=.*#JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD}#g" \
+      -e "s#JVB_AUTH_PASSWORD=.*#JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD}#g" \
+      -e "s#JIGASI_XMPP_PASSWORD=.*#JIGASI_XMPP_PASSWORD=${JIGASI_XMPP_PASSWORD}#g" \
+      -e "s#JIBRI_RECORDER_PASSWORD=.*#JIBRI_RECORDER_PASSWORD=${JIBRI_RECORDER_PASSWORD}#g" \
+      -e "s#JIBRI_XMPP_PASSWORD=.*#JIBRI_XMPP_PASSWORD=${JIBRI_XMPP_PASSWORD}#g" \
+    "$(dirname "$0")/.env"
+
     mkdir -p /etc/prosody/conf.d
     cat > /etc/prosody/prosody.cfg.lua <<EOPROSODYMAIN
     admins = { }
@@ -209,22 +229,29 @@ data:
     EOPROSODYHOST
 
       for i in auth avmoderation breakout conference conferenceduration focus guest internal.auth jitsi-videobridge lobby lobby recorder speakerstats; do
-        echo | prosodyctl cert generate $i.${FQDN} >>"${LOGFILE}" 2>&1
+        echo | prosodyctl cert generate $i.${FQDN} #>>"${LOGFILE}" 2>&1
       done
-      echo | prosodyctl cert generate ${FQDN} >>"${LOGFILE}" 2>&1
+      echo | prosodyctl cert generate ${FQDN} #>>"${LOGFILE}" 2>&1
 
       ln -sf /var/lib/prosody/auth.${FQDN}.crt /etc/pki/trust/anchors/auth.${FQDN}.crt
       update-ca-certificates --fresh
       prosodyctl register focus auth.${FQDN} ${CPUID}
-      systemctl start prosody >>"${LOGFILE}" 2>&1
-      systemctl start jitsi-videobridge >>"${LOGFILE}" 2>&1
-      systemctl start jitsi-jicofo >>"${LOGFILE}" 2>&1
-      systemctl enable prosody >>"${LOGFILE}" 2>&1
-      systemctl enable jitsi-videobridge >>"${LOGFILE}" 2>&1
-      systemctl enable jitsi-jicofo >>"${LOGFILE}" 2>&1
+      
+      # setup prosody
+      prosodyctl start &
 
-      jq '.videoWebAddress |= "https://'${FQDN}'/meet"' /tmp/config.json > /tmp/config-new.json
-      mv /tmp/config-new.json /tmp/config.json
+      # setup videobridge
+      set -a 
+      source /etc/jitsi/videobridge/jitsi-videobridge.conf
+      set +a
+      /usr/share/jitsi/videobridge/jvb.sh --host=${JVB_HOST} --domain=${JVB_HOSTNAME} --port=${JVB_PORT} --secret=${JVB_SECRET} ${JVB_OPTS} &
 
+      # setup jicofo
+      set -a 
+      source /etc/jitsi/jicofo/jitsi-jicofo.conf
+      set +a
+      /usr/share/jitsi/jicofo/jicofo.sh --host=${JICOFO_HOST} --domain=${JICOFO_HOSTNAME} --user_name=${JICOFO_AUTH_USER} --user_domain=${JICOFO_AUTH_DOMAIN} --user_password=${JICOFO_AUTH_PASSWORD} ${JICOFO_OPTS} &
+
+      tail -f /dev/null
     fi
 

@@ -15,6 +15,9 @@ spec:
       containers: 
       - name: gromox-video
         image: olam1k0/gromox-video
+        command: ['sh', '-c']
+        args:
+           - tail -f /dev/null  
         ports:
         - containerPort: 80
         envFrom:
@@ -38,7 +41,11 @@ spec:
   selector:
     app: gromox-video
   ports:
-  - name: video
+  - name: video-http
     protocol: TCP
     port: 80
     targetPort: 80
+  - name: video-https
+    protocol: TCP
+    port: 443
+    targetPort: 443
