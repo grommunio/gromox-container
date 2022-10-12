@@ -1,14 +1,16 @@
 # Notes
 
-* Set up FQDN for GROMOX
-* Use that FQDN for chat
-* Set up chat admin and password (read earlier setup script)
-  * set up admin-plugins-config to pull FQDN from an env var
-* Sort out line 439 - 441
+* ~~Set up FQDN for GROMOX~~
+* ~~Use that FQDN for chat~~
+* ~~Set up chat admin and password (read earlier setup script)~~
+  * ~~set up admin-plugins-config to pull FQDN from an env var~~
+* ~~Sort out line 439 - 441~~
 
 
 * Make DB data persistent after creation so even if deployment restarts, data stays
 
+* Create custom docker images using gramm theme 
+  * change helm chart to pull from grommunio repos
 
 ## Practices to incorporate
 * Use namespacees
