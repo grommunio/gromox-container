@@ -6,11 +6,12 @@
   * ~~set up admin-plugins-config to pull FQDN from an env var~~
 * ~~Sort out line 439 - 441~~
 
-
 * Make DB data persistent after creation so even if deployment restarts, data stays
 
-* Create custom docker images using gramm theme 
-  * change helm chart to pull from grommunio repos
+* ~~Create custom docker images using gramm theme~~
+  * ~~change helm chart to pull from grommunio repos~~
+
+* Use s6-overlay and build the docker containers better
 
 ## Practices to incorporate
 * Use namespacees
@@ -20,3 +21,4 @@
 * Implement monitoring
 * Use immutable images
 * Automate certificate generation
+
