@@ -22,7 +22,7 @@ web:
   replicaCount: 1
   image:
     repository: grommunio/web
-    tag: stable
+    tag: stable-1
 
   extraEnvs: {}
   service:
