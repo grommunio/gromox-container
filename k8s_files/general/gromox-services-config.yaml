@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gromox-services-config
+data:
+  http.cfg: |
+    listen_port=10080
+    listen_ssl_port=10443
+    http_support_ssl=yes
+    http_certificate_path=/home/certificates/tls.crt
+    http_private_key_path=/home/certificates/tls.key
+  imap.cfg: |
+    listen_ssl_port=993
+    imap_support_starttls=true
+    imap_certificate_path=/home/certificates/tls.crt
+    imap_private_key_path=/home/certificates/tls.key
+    imap_force_starttls=true
+  pop3.cfg: |
+    listen_ssl_port=995
+    pop3_support_stls=true
+    pop3_certificate_path=/home/certificates/tls.crt
+    pop3_private_key_path=/home/certificates/tls.key
+    pop3_force_stls=true
+  smtp.cfg: |
+    listen_port = 24

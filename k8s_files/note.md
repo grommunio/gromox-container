@@ -13,6 +13,11 @@
 
 * Use s6-overlay and build the docker containers better
 
+* Figure out how to mount multiple files in same config map to diff paths
+
+* Test new docker container
+
+
 ## Practices to incorporate
 * Use namespacees
 * Use Autoscaling

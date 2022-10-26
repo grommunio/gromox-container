@@ -185,8 +185,8 @@ spec:
           mountPath: /home/chat
       volumes:
       - name: ssl-volume
-        configMap:
-          name: ssl-config
+        secret:
+          secretName: selfsigned-cert-tls
       - name: admin-plugins-volume
         configMap:
           name: admin-plugins-config
@@ -199,6 +199,9 @@ spec:
         configMap:
           name: chat-setup-config
           defaultMode: 0777
+      - name: gromox-services-config
+        configMap:
+          name: gromox-services-config
 ---
 apiVersion: v1
 kind: Service
