@@ -27,7 +27,7 @@ spec:
             name: general-config
       - name: gromox-timer
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/timer"]
+        command: ['sh', '-c', "/scripts/db.sh &&/usr/libexec/gromox/timer"]
         ports:
         - containerPort: 6666 
         envFrom:
@@ -57,6 +57,7 @@ spec:
         args:
            - /scripts/db.sh && 
              mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf && 
+             ln -s /home/gromox-services/* /etc/gromox/ &&
              php-fpm &&
              /usr/libexec/gromox/http
         ports:
@@ -70,14 +71,19 @@ spec:
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
+        - name: gromox-services-volume
+          mountPath: /home/gromox-services
       - name: gromox-postfix
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/scripts/db.sh && postfix start && tail -f /dev/null"]
+        command: ['sh', '-c', "/scripts/db.sh &&  ln -s /home/gromox-services/* /etc/gromox/ &&postfix start && tail -f /dev/null"]
         envFrom:
         - configMapRef:
             name: db-config
         - configMapRef:
             name: general-config
+        volumeMounts:
+        - name: gromox-services-volume
+          mountPath: /home/gromox-services
       - name: gromox-delivery-queue
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/delivery-queue"]
@@ -96,7 +102,7 @@ spec:
             name: general-config
       - name: gromox-pop3
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/pop3"]
+        command: ['sh', '-c', "/scripts/db.sh && ln -s /home/gromox-services/* /etc/gromox/ && /usr/libexec/gromox/pop3"]
         ports:
         - containerPort: 995
         envFrom:
@@ -107,9 +113,11 @@ spec:
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
+        - name: gromox-services-volume
+          mountPath: /home/gromox-services
       - name: gromox-imap
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/imap"]
+        command: ['sh', '-c', "/scripts/db.sh && ln -s /home/gromox-services/* /etc/gromox/ && /usr/libexec/gromox/imap"]
         ports:
         - containerPort: 993
         envFrom:
@@ -120,6 +128,8 @@ spec:
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
+        - name: gromox-services-volume
+          mountPath: /home/gromox-services
       - name: gromox-antispam
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c']
@@ -127,6 +137,7 @@ spec:
            - mkdir -p /var/run/grommunio-antispam &&
              rspamd -u groas -g grommunio &&
              redis-server &&
+             ln -s /home/gromox-services/* /etc/gromox/ &&
              tail -f /dev/null
         envFrom:
         - configMapRef:
@@ -136,6 +147,8 @@ spec:
         volumeMounts:
         - name: ssl-volume
           mountPath: /home/certificates
+        - name: gromox-services-volume
+          mountPath: /home/gromox-services
       - name: gromox-admin
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c']
@@ -150,6 +163,7 @@ spec:
              /home/plugins/chat-conf.sh &&
              uwsgi --ini /usr/share/grommunio-admin-api/api-config.ini --daemonize /var/log/admin-api.log &&
              chown nginx:nginx /run/grommunio/admin-api.socket &&
+             ln -s /home/gromox-services/* /etc/gromox/ &&
              nginx -g 'daemon off;'
         ports:
         - containerPort: 8443
@@ -167,12 +181,15 @@ spec:
           mountPath: /home/plugins
         - name: admin-links-volume
           mountPath: /home/links 
+        - name: gromox-services-volume
+          mountPath: /home/gromox-services
       - name: gromox-chat
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c']
         args:
            - cd /usr/share/grommunio-chat &&
-             /home/chat/setup.sh 
+             /home/chat/setup.sh &&
+             ln -s /home/gromox-services/* /etc/gromox/
         envFrom:
         - configMapRef:
             name: chat-db-config
@@ -183,6 +200,8 @@ spec:
           mountPath: /home/certificates
         - name: chat-setup-volume
           mountPath: /home/chat
+        - name: gromox-services-volume
+          mountPath: /home/gromox-services
       volumes:
       - name: ssl-volume
         secret:
@@ -199,7 +218,7 @@ spec:
         configMap:
           name: chat-setup-config
           defaultMode: 0777
-      - name: gromox-services-config
+      - name: gromox-services-volume
         configMap:
           name: gromox-services-config
 ---
