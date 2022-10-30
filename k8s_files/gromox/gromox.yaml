@@ -86,20 +86,26 @@ spec:
           mountPath: /home/gromox-services
       - name: gromox-delivery-queue
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/delivery-queue"]
+        command: ['sh', '-c', "/scripts/db.sh && ln -s /home/gromox-services/* /etc/gromox/ && /usr/libexec/gromox/delivery-queue"]
         envFrom:
         - configMapRef:
             name: db-config
         - configMapRef:
             name: general-config
+        volumeMounts:
+        - name: gromox-services-volume
+          mountPath: /home/gromox-services
       - name: gromox-delivery
         image: olam1k0/gromox-suse:latest
-        command: ['sh', '-c', "/scripts/db.sh && /usr/libexec/gromox/delivery"]
+        command: ['sh', '-c', "/scripts/db.sh && ln -s /home/gromox-services/* /etc/gromox/ && /usr/libexec/gromox/delivery"]
         envFrom:
         - configMapRef:
             name: db-config
         - configMapRef:
             name: general-config
+        volumeMounts:
+        - name: gromox-services-volume
+          mountPath: /home/gromox-services
       - name: gromox-pop3
         image: olam1k0/gromox-suse:latest
         command: ['sh', '-c', "/scripts/db.sh && ln -s /home/gromox-services/* /etc/gromox/ && /usr/libexec/gromox/pop3"]
