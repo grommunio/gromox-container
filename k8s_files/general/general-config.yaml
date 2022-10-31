@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: general-config
-data:
-  FQDN: grammm.net
-  ADMIN_PASS: admin_pass
-  CHAT_ADMIN_PASS: admin_pass
-  CHAT_ADMIN_USER: admin
