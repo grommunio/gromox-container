@@ -18,6 +18,7 @@ ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLA
 RUN tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz
 
 # Setup services in s6
+RUN  /bin/sh -c 'mkdir -p /etc/s6-overlay/s6-rc.d/user/contents.d'
 COPY build-assets/contents.d/ /etc/s6-overlay/s6-rc.d/user/contents.d
 COPY build-assets/services/ /etc/s6-overlay/s6-rc.d
 
