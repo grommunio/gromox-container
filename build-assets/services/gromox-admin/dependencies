@@ -1,0 +1,4 @@
+db-setup
+config-setup
+php-fpm
+gromox-nginx

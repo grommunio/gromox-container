@@ -1,0 +1,4 @@
+#!/command/execlineb -P
+
+cd /usr/share/grommunio-chat 
+/home/chat/setup.sh 
