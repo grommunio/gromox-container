@@ -1,4 +1,0 @@
-#!/command/execlineb -P
-
-mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf  
-ln -s /home/gromox-services/* /etc/gromox/ 
