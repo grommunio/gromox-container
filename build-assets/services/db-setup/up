@@ -1,2 +1,3 @@
-#!/usr/bin/with-contenv sh
-/scripts/db.sh
+#!/command/execlineb -P
+
+/etc/s6-overlay/s6-rc.d/db-setup/db.sh

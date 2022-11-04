@@ -16,11 +16,15 @@ ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLA
 RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz
 ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-x86_64.tar.xz /tmp
 RUN tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-symlinks-noarch.tar.xz /tmp
+RUN tar -C / -Jxpf /tmp/s6-overlay-symlinks-noarch.tar.xz
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-symlinks-arch.tar.xz /tmp
+RUN tar -C / -Jxpf /tmp/s6-overlay-symlinks-arch.tar.xz
 
 # Setup services in s6
 RUN  /bin/sh -c 'mkdir -p /etc/s6-overlay/s6-rc.d/user/contents.d'
-COPY build-assets/contents.d/ /etc/s6-overlay/s6-rc.d/user/contents.d
-COPY build-assets/services/ /etc/s6-overlay/s6-rc.d
+COPY build-assets/contents.d/ /etc/s6-overlay/s6-rc.d/user/contents.d/
+COPY build-assets/services/ /etc/s6-overlay/s6-rc.d/
 
 RUN postconf -e virtual_alias_maps=mysql:/etc/postfix/g-alias.cf && \
     postconf -e virtual_mailbox_domains=mysql:/etc/postfix/g-virt.cf && \
@@ -28,7 +32,7 @@ RUN postconf -e virtual_alias_maps=mysql:/etc/postfix/g-alias.cf && \
 
 COPY   ./config_files/ssl_certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
 
-COPY ./shell_files/* /scripts/
+#COPY ./shell_files/db.sh /usr/local/sbin
 
 RUN chown root:gromox /etc/gromox && \ 
     chmod 775 /etc/gromox && \
