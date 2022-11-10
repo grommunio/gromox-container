@@ -1,6 +1,2 @@
-db-setup
-config-setup
-php-fpm
 gromox-timer
-gromox-event
 gromox-nginx

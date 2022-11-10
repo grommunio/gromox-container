@@ -32,8 +32,6 @@ RUN postconf -e virtual_alias_maps=mysql:/etc/postfix/g-alias.cf && \
 
 COPY   ./config_files/ssl_certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
 
-#COPY ./shell_files/db.sh /usr/local/sbin
-
 RUN chown root:gromox /etc/gromox && \ 
     chmod 775 /etc/gromox && \
     ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf 
