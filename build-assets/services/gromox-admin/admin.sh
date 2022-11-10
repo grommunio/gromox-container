@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/usr/bin/with-contenv sh
 
 grommunio-admin passwd -p $ADMIN_PASS 
 ln -s /home/plugins/conf.yaml /etc/grommunio-admin-api/conf.d/conf.yaml 

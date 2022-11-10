@@ -1,4 +1,3 @@
 #!/command/execlineb -P
 
-cd /usr/share/grommunio-chat 
-/home/chat/setup.sh 
+/etc/s6-overlay/s6-rc.d/gromox-chat/chat.sh
