@@ -1,5 +1,4 @@
 #!/command/execlineb -P
 
-mkdir -p /var/run/grommunio-antispam 
-rspamd -u groas -g grommunio 
-redis-server
+/etc/s6-overlay/s6-rc.d/db-setup/antispam.sh
+
