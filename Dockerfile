@@ -26,14 +26,5 @@ RUN  /bin/sh -c 'mkdir -p /etc/s6-overlay/s6-rc.d/user/contents.d'
 COPY build-assets/contents.d/ /etc/s6-overlay/s6-rc.d/user/contents.d/
 COPY build-assets/services/ /etc/s6-overlay/s6-rc.d/
 
-RUN postconf -e virtual_alias_maps=mysql:/etc/postfix/g-alias.cf && \
-    postconf -e virtual_mailbox_domains=mysql:/etc/postfix/g-virt.cf && \
-    postconf -e virtual_transport="smtp:[localhost]:24" 
-
-COPY   ./config_files/ssl_certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
-
-RUN chown root:gromox /etc/gromox && \ 
-    chmod 775 /etc/gromox && \
-    ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf 
 
 ENTRYPOINT ["/init"]
