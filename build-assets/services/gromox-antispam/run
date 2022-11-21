@@ -1,4 +1,4 @@
 #!/command/execlineb -P
 
-/etc/s6-overlay/s6-rc.d/db-setup/antispam.sh
+/etc/s6-overlay/s6-rc.d/gromox-antispam/antispam.sh
 
