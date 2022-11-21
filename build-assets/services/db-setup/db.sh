@@ -1,4 +1,4 @@
-#!/bin/with-contenv sh
+#!/usr/bin/with-contenv sh
 
 generate_mysql_adaptor_conf(){
   FILENAME=$1 
