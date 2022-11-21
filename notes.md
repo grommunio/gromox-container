@@ -60,3 +60,8 @@ sync:
 * Rewrite grom-web's grommunio-web conf file to stop redirecting
 
 * Start antispam on admin-api
+
+* Use volumes to mount /etc/gromox too
+
+* Use init container to setup mariadb
+  * Run this container everytime mariadb restarts

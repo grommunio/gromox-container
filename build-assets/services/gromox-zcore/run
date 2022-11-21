@@ -1,0 +1,3 @@
+#!/command/execlineb -P
+
+/usr/libexec/gromox/zcore
