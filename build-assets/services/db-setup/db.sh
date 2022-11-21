@@ -59,3 +59,4 @@ generate_mysql_adaptor_conf "/etc/gromox/mysql_adaptor.cfg"
 generate_admin_db_conf "/etc/grommunio-admin-api/conf.d/database.yaml"
 generate_g_cf_files "/etc/postfix/g-alias.cf" "SELECT mainname FROM aliases WHERE aliasname='%s'"
 generate_g_cf_files "/etc/postfix/g-virt.cf" "SELECT 1 FROM domains WHERE domain_status=0 AND domainname='%s'"
+
