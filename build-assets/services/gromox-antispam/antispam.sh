@@ -1,4 +1,4 @@
 #!/bin/sh -e
 
-rspamd -u groas -g grommunio 
 redis-server
+rspamd -u groas -g grommunio 
