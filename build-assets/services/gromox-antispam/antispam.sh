@@ -1,4 +1,4 @@
 #!/bin/sh -e
 
-redis-server
+redis-server --daemonize yes
 rspamd -u groas -g grommunio 
