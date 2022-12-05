@@ -1,0 +1,4 @@
+#!/command/execlineb -P
+
+redis-server
+
