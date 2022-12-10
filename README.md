@@ -45,7 +45,7 @@ docker pull grommunio/gromox-core:latest
 
 ### Quick Start
 
-* The quickest way to get started is using [docker-compose](https://docs.docker.com/compose/) or [kubernetes](https://kubernetes.io/). See the examples folder for a working [docker-compose example](https://github.com/grommunio/gromox-docker-compose) and [kubernetes example](https://github.com/grommunio/gromox-kubernetes) that can be modified (and **should be**) for development or production use.
+* The quickest way to get started is using [docker-compose](https://docs.docker.com/compose/) or [kubernetes](https://kubernetes.io/). See the examples folder for a working [docker-compose example](examples/) and [kubernetes example](https://github.com/grommunio/gromox-kubernetes) that can be modified (and **should be**) for development or production use.
 
 * Set various [environment variables](#environment-variables) to understand the capabiltiies of this image.
 * Map [persistent storage](#persistent-volumes) for access to configuration and data files for backup.
