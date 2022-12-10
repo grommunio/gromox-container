@@ -1,11 +1,13 @@
 FROM opensuse/leap:15.3
 
+ARG GROMMUNIO_REPO=openSUSE_Leap_15.3
+
 ARG S6_OVERLAY_VERSION=3.1.2.1
 
 RUN zypper install -y curl && \
       curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
       rpm --import gr.key && \
-      zypper --non-interactive --quiet ar -C https://download.grommunio.com/community/openSUSE_Leap_15.3 grommunio && \
+      zypper --non-interactive --quiet ar -C https://download.grommunio.com/community/${GROMMUNIO_REPO} grommunio && \
       zypper --gpg-auto-import-keys ref && \
       zypper -n refresh grommunio && \
       zypper in -y gromox grommunio-common mariadb-client nginx nginx-module-vts nginx-module-brotli nginx-module-zstd postfix \
