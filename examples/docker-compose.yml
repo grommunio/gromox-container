@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   grommunio:
-    build: .
+    image: olam1k0/gromox-core:v0.0.1
     volumes:
       - /home/dynamic/Docker-volume/certificates:/home/certificates
       - /home/dynamic/Docker-volume/gromox-services:/home/gromox-services
