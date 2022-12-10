@@ -1,0 +1,5 @@
+
+conf.yaml: |
+    sync:
+      connection:
+        host: http://localhost:6379

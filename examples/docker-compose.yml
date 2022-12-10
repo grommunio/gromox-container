@@ -1,0 +1,44 @@
+version: "3.9"
+services:
+  grommunio:
+    build: .
+    volumes:
+      - /home/dynamic/Docker-volume/certificates:/home/certificates
+      - /home/dynamic/Docker-volume/gromox-services:/home/gromox-services
+      - /home/dynamic/Docker-volume/plugins:/home/plugins
+      - /home/dynamic/Docker-volume/links:/home/links
+      - /home/dynamic/Docker-volume/nginx:/home/nginx
+    environment:
+      - MARIADB_USER=grommunio
+      - MARIADB_PASSWORD=admin
+      - MARIADB_ROOT_PASSWORD=admin
+      - MARIADB_DATABASE=grommunio
+      - DB_HOST=db
+      - ADMIN_PASS=admin
+      - FQDN=mail.route27.test
+    ports:
+      - '8443:8443'
+      - '443:443'
+    links:
+      - db
+      - redis
+    depends_on:
+      - db
+      - redis
+  db:
+    image: mariadb
+    environment:
+      - MARIADB_USER=grommunio
+      - MARIADB_PASSWORD=admin
+      - MARIADB_ROOT_PASSWORD=admin
+      - MARIADB_DATABASE=grommunio
+    ports:
+      - '3260:3260'
+    volumes:
+      - /home/dynamic/Docker-volume/db:/var/lib/mysql
+
+volumes:
+  cache:
+    driver: local
+  db:
+    driver: local
