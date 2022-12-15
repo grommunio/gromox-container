@@ -10,7 +10,7 @@ This will build a container for the [Grommunio Core](https://grommunio.com/) sui
 
 * This Container uses a [OpenSuse Linux base](https://hub.docker.com/r/opensuse/leap) and includes [s6 overlay](https://github.com/just-containers/s6-overlay) enabled for PID 1 Init capabilities. 
 
-*This is an incredibly complex piece of software that will tries to get you up and running with sane defaults, you will need to switch eventually over to manually configuring the configuration file when depending on your usage case.* 
+*This is an incredibly complex piece of software that tries to get you up and running with sane defaults, you will need to switch eventually over to manually configuring the configuration file when depending on your usage case.* 
 
 **Do not use our defaults in production environment! Change them** 
 
