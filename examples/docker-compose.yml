@@ -21,10 +21,8 @@ services:
       - '443:443'
     links:
       - db
-      - redis
     depends_on:
       - db
-      - redis
   db:
     image: mariadb
     environment:
