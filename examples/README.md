@@ -42,7 +42,7 @@ sudo docker volume create nginx-volume
     ```
 
 
-* Start all of the containers using the Docker compose command. There are three service required to run the grommunio container effectively.
+* Start all of the containers using the Docker compose command. The following services are required to run the grommunio container effectively.
   * Grommunio Container
   * MySQL Container (MariaDB)
 ```
