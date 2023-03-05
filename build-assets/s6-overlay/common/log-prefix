@@ -1,0 +1,5 @@
+#!/command/execlineb -S1
+s6-envuidgid -D 65534:65534 nobody
+s6-applyuidgid -U
+exec -c
+s6-log -d3 -b -- $1 1
