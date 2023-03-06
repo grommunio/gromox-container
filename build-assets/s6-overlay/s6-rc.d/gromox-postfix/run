@@ -1,4 +1,3 @@
-#!/usr/bin/sh -e
+#!/command/execlineb -P
 
-
-postfix start
+/etc/s6-overlay/s6-rc.d/gromox-postfix/gromox-postfix.sh
