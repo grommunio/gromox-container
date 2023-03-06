@@ -12,7 +12,8 @@ RUN zypper install -y curl && \
   zypper --gpg-auto-import-keys ref && \
   zypper -n refresh grommunio && \
   zypper in -y gromox grommunio-common mariadb-client nginx nginx-module-vts nginx-module-brotli nginx-module-zstd postfix \
-    grommunio-antispam postfix-mysql grommunio-admin-api grommunio-admin-web grommunio-web vim xz tar
+    grommunio-antispam postfix-mysql grommunio-admin-api grommunio-admin-web grommunio-web vim xz tar && \
+  zypper clean --all
 
 # Setup S6
 ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp
