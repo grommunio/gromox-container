@@ -5,6 +5,9 @@ if [ -f /etc/php7/fpm/php-fpm.conf.default ]; then
 	mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf
 fi
 
+if [ -f /etc/php8/fpm/php-fpm.conf.default ]; then
+	mv /etc/php8/fpm/php-fpm.conf.default /etc/php8/fpm/php-fpm.conf
+fi
 
 # Gromox-nginx
 if [ ! -f /etc/grommunio-common/nginx/ssl_certificate.conf ]; then
@@ -20,9 +23,11 @@ grommunio-admin passwd -p $ADMIN_PASS
 ln -sf /home/plugins/conf.yaml /etc/grommunio-admin-api/conf.d/conf.yaml 
 /home/links/config.sh 
 ln -sf /home/links/web-config.conf /etc/grommunio-admin-common/nginx.d/web-config.conf 
+sed -i 's/chmod-socket = 660/chmod-socket = 666/g' /usr/share/grommunio-admin-api/api-config.ini
 
 # General
 chown root:gromox /etc/gromox  
+chown root:gromox /home/certificates/cert.key
 chmod 775 /etc/gromox 
 ln -sf /home/gromox-services/* /etc/gromox/
 
