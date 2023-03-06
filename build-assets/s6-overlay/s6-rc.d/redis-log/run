@@ -1,0 +1,2 @@
+#!/bin/sh
+exec s6-log -b T p[redis] 1
