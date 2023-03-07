@@ -1,4 +1,3 @@
-#!/usr/bin/sh -e
-
-
+#!/command/execlineb -P
+fdmove -c 2 1
 postfix start
