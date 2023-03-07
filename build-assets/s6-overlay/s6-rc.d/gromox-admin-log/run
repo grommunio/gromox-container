@@ -1,2 +1,5 @@
-#!/bin/execlineb -P
-s6-log -b p[admin] T 1
+#!/command/execlineb -P
+s6-envuidgid -D 65534:65534 nobody
+s6-applyuidgid -U
+exec -c
+s6-log -b -- T p[admin] 1
