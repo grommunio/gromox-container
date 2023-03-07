@@ -1,5 +1,2 @@
 #!/command/execlineb -P
-s6-envuidgid -D 65534:65534 nobody
-s6-applyuidgid -U
-exec -c
-s6-log -b -- T p[admin] 1
+/etc/s6-overlay/common/log-prefix p[admin]
