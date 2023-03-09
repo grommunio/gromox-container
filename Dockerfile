@@ -25,6 +25,13 @@ RUN tar -C / -Jxpf /tmp/s6-overlay-symlinks-noarch.tar.xz
 ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-symlinks-arch.tar.xz /tmp
 RUN tar -C / -Jxpf /tmp/s6-overlay-symlinks-arch.tar.xz
 
+# Setup configuration
+RUN \  
+  sed -i 's/^level = "info";$/level = "notice";/' /etc/grommunio-antispam/logging.inc && \
+  postconf -e -v virtual_alias_maps=mysql:/etc/postfix/g-alias.cf && \
+  postconf -e -v virtual_mailbox_domains=mysql:/etc/postfix/g-virt.cf && \
+  postconf -e -v virtual_transport="smtp:[localhost]:24"
+
 # Setup services in s6
 COPY build-assets/s6-overlay/ /etc/s6-overlay/
 
