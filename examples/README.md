@@ -10,32 +10,32 @@ Starting and running the Grommunio container is a simple process. This is a quic
 ## Installation Guide
   * Create the required volume needed for persistent data to run the Grommunio container.
 ```
-sudo docker volume create ssl-volume
-sudo docker volume create gromox-services-volume
-sudo docker volume create admin-plugins-volume
-sudo docker volume create admin-links-volume
-sudo docker volume create nginx-volume
+sudo docker volume create certificates
+sudo docker volume create gromox-services
+sudo docker volume create admin-plugins
+sudo docker volume create admin-links
+sudo docker volume create nginx
 ```
 
 * The docker volume needs to be populated before starting the contianer. Via the init container or using docker mount, populate each of the volume/mount with the following data.
 
-  * Populate the **ssl-volume** with the ssl certificates with the following command.
+  * Populate the **certificates** volume with the ssl certificates with the following command.
     ```
     openssl req -x509 -nodes -newkey rsa:4096 -keyout cert.key -out cert.pem -sha256 -days 365
     ```
-  * Populate the **gromox-services-volume** with the data in this [link](gromox-services)
+  * Populate the **gromox-services** volume with the data in this [link](gromox-services)
     ```
-    touch http.cfg imap.cfg mysql_adaptor.cfg pop3.cfh smtp.cfg
+    touch http.cfg imap.cfg mysql_adaptor.cfg pop3.cfg smtp.cfg
     ```
-  * Populate the **nginx-volume** with the data in this [link](nginx)
+  * Populate the **nginx** volume with the data in this [link](nginx)
     ```
     touch ssl_certificate.conf
     ```
-  * Populate the **admin-links-volume** with the data in this [link](links)
+  * Populate the **admin-links** volume with the data in this [link](links)
     ```
     touch config.sh web-config.conf
     ```
-  * Populate the **admin-plugins-volume** with the data in this [link](plugins)
+  * Populate the **admin-plugins** volume with the data in this [link](plugins)
 
     ```
     touch conf.yaml
