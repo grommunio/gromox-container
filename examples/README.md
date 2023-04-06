@@ -22,28 +22,15 @@ sudo docker volume create admin-links
 sudo docker volume create nginx
 ```
 
-* The docker volume needs to be populated before starting the contianer. Via the init container or using docker mount, populate each of the volume/mount with the following data.
+* Create the required certificates. An example command would be
+```
+openssl req -x509 -nodes -newkey rsa:4096 -keyout cert.key -out cert.pem -sha256 -days 365
+```
 
-  * Populate the **certificates** volume with the ssl certificates with the following command.
-    ```
-    openssl req -x509 -nodes -newkey rsa:4096 -keyout cert.key -out cert.pem -sha256 -days 365
-    ```
-  * Populate the **gromox-services** volume with the data in this [link](gromox-services)
-    ```
-    touch http.cfg imap.cfg mysql_adaptor.cfg pop3.cfg smtp.cfg
-    ```
-  * Populate the **nginx** volume with the data in this [link](nginx)
-    ```
-    touch ssl_certificate.conf
-    ```
-  * Populate the **admin-links** volume with the data in this [link](links)
-    ```
-    touch config.sh web-config.conf
-    ```
-  * Populate the **admin-plugins** volume with the data in this [link](plugins)
+* The docker volume needs to be populated before starting the contianer. Via the init container or using docker mount, populate each of the volume/mount using the `data-setup.sh` script.
 
     ```
-    touch conf.yaml
+    ./data-setup.sh
     ```
 
 
