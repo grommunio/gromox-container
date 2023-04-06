@@ -1,0 +1,3 @@
+#!/command/execlineb -P
+# "a oneshot script must be execline because of how s6-rc internally works"
+/etc/s6-overlay/s6-rc.d/db-setup/db.sh

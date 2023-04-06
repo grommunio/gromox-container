@@ -1,5 +1,0 @@
-#!/bin/sh -e
-
-if [ ! -S /run/gromox/php-fpm.sock ]; then
-	/usr/sbin/php-fpm
-fi
