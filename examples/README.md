@@ -8,7 +8,12 @@ Starting and running the Grommunio container is a simple process. This is a quic
 * Use the [official Docker](https://docs.docker.com/get-docker/) guide to ensure that docker is installed on your local machine.
 
 ## Installation Guide
-  * Create the required volume needed for persistent data to run the Grommunio container.
+* Create the required docker network
+```
+docker network create proxynet
+```
+
+* Create the required volume needed for persistent data to run the Grommunio container.
 ```
 sudo docker volume create certificates
 sudo docker volume create gromox-services
