@@ -8,7 +8,7 @@ services:
         condition: service_started
     volumes:
       - /srv/docker/gromox/certificates:/home/certificates
-      - /srv/docker/gromox/services:/home/gromox-services
+      - /srv/docker/gromox/gromox-services:/home/gromox-services
       - /srv/docker/gromox/plugins:/home/plugins
       - /srv/docker/gromox/links:/home/links
       - /srv/docker/gromox/nginx:/home/nginx
