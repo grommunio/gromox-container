@@ -12,6 +12,9 @@ docker cp gromox-services/pop3.cfg populate-volume:/home/gromox-services
 docker cp links/config.sh populate-volume:/home/links
 docker cp links/web-config.conf populate-volume:/home/links
 
+echo "This script assumes that the certificates you generated are called 'cert.key' (secret key) and 'cert.pem' (public key)."
+echo "This script also assumes that the certificates are created in the current working directory."
+
 docker cp cert.key populate-volume:/home/certificates
 docker cp cert.pem populate-volume:/home/certificates
 
