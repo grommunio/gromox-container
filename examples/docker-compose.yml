@@ -1,13 +1,17 @@
 version: "3.9"
 services:
-  grommunio:
-    image: olam1k0/gromox-core:v0.0.1
+
+  core:
+    image: grommunio/gromox-core:0.2-opensuse-leap-15-4
+    depends_on:
+      db:
+        condition: service_started
     volumes:
-      - /home/dynamic/Docker-volume/certificates:/home/certificates
-      - /home/dynamic/Docker-volume/gromox-services:/home/gromox-services
-      - /home/dynamic/Docker-volume/plugins:/home/plugins
-      - /home/dynamic/Docker-volume/links:/home/links
-      - /home/dynamic/Docker-volume/nginx:/home/nginx
+      - /srv/docker/gromox/certificates:/home/certificates
+      - /srv/docker/gromox/services:/home/gromox-services
+      - /srv/docker/gromox/plugins:/home/plugins
+      - /srv/docker/gromox/links:/home/links
+      - /srv/docker/gromox/nginx:/home/nginx
     environment:
       - MARIADB_USER=grommunio
       - MARIADB_PASSWORD=admin
@@ -15,28 +19,37 @@ services:
       - MARIADB_DATABASE=grommunio
       - DB_HOST=db
       - ADMIN_PASS=admin
-      - FQDN=mail.route27.test
+      - FQDN=example.com
+      - S6_VERBOSITY=3
     ports:
       - '8443:8443'
-      - '443:443'
-    links:
-      - db
-    depends_on:
-      - db
+    networks:
+      proxynet:
+        aliases: 
+          - grommunio
+      default:
+
   db:
     image: mariadb
     environment:
+      - MARIADB_DATABASE=grommunio
       - MARIADB_USER=grommunio
       - MARIADB_PASSWORD=admin
       - MARIADB_ROOT_PASSWORD=admin
-      - MARIADB_DATABASE=grommunio
-    ports:
-      - '3260:3260'
+      - MARIADB_ROOT_HOST=%
     volumes:
-      - /home/dynamic/Docker-volume/db:/var/lib/mysql
+      - /srv/docker/gromox/db:/var/lib/mysql
+    networks:
+      default:
+        aliases:
+          - db
 
-volumes:
-  cache:
-    driver: local
-  db:
-    driver: local
+networks:
+  # This network has been created separately
+  proxynet:
+    external: true
+  default:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: "fd12:3456:789a:1::/64"
