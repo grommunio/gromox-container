@@ -1,0 +1,131 @@
+version: "3.9"
+services:
+  grommunio:
+    build: ./
+    volumes:
+      - /home/dynamic/Docker-volume/certificates:/home/certificates
+      - /home/dynamic/Docker-volume/gromox-services:/home/gromox-services
+      - /home/dynamic/Docker-volume/plugins:/home/plugins
+      - /home/dynamic/Docker-volume/links:/home/links
+      - /home/dynamic/Docker-volume/nginx:/home/nginx
+
+
+
+      - /home/dynamic/Docker-volume/conf.d:/etc/nginx/conf.d/
+
+      - /home/dynamic/Docker-volume/grommunio-admin-common:/usr/share/grommunio-admin-common/
+      - /home/dynamic/Docker-volume/grommunio-admin-common-etc:/etc/grommunio-admin-common/
+
+      - /home/dynamic/Docker-volume/grommunio-common:/usr/share/grommunio-common/
+      - /home/dynamic/Docker-volume/grommunio-common-etc:/etc/grommunio-common/
+
+      - /home/dynamic/Docker-volume/gromox:/run/gromox/
+      - /home/dynamic/Docker-volume/php-fpm:/run/php-fpm
+
+
+    environment:
+      - MARIADB_USER=grommunio
+      - MARIADB_PASSWORD=admin
+      - MARIADB_ROOT_PASSWORD=admin
+      - MARIADB_DATABASE=grommunio
+      - DB_HOST=db
+      - ADMIN_PASS=admin
+      - FQDN=mail.route27.test
+      - ADMIN_URL=grommunio-admin
+      - WEB_URL=grommunio-web
+    ports:
+      - '443:443'
+    links:
+      - db
+      - grommunio-admin
+      - grommunio-web
+    depends_on:
+      - db
+
+
+  db:
+    image: mariadb
+    environment:
+      - MARIADB_USER=grommunio
+      - MARIADB_PASSWORD=admin
+      - MARIADB_ROOT_PASSWORD=admin
+      - MARIADB_DATABASE=grommunio
+    ports:
+      - '3260:3260'
+    volumes:
+      - /home/dynamic/Docker-volume/db:/var/lib/mysql
+
+  grommunio-admin:
+    build: ./grommunio-admin
+    volumes:
+      - /home/dynamic/Docker-volume/certificates:/home/certificates
+      - /home/dynamic/Docker-volume/gromox-services:/home/gromox-services
+      - /home/dynamic/Docker-volume/plugins:/home/plugins
+      - /home/dynamic/Docker-volume/links:/home/links
+      - /home/dynamic/Docker-volume/nginx:/home/nginx
+
+
+
+      - /home/dynamic/Docker-volume/conf.d:/etc/nginx/conf.d/
+
+      - /home/dynamic/Docker-volume/grommunio-admin-common:/usr/share/grommunio-admin-common/
+      - /home/dynamic/Docker-volume/grommunio-admin-common-etc:/etc/grommunio-admin-common/
+
+      - /home/dynamic/Docker-volume/grommunio-common:/usr/share/grommunio-common/
+      - /home/dynamic/Docker-volume/grommunio-common-etc:/etc/grommunio-common/
+
+      - /home/dynamic/Docker-volume/database:/etc/grommunio-admin-api/conf.d/
+
+
+    environment:
+      - MARIADB_USER=grommunio
+      - MARIADB_PASSWORD=admin
+      - MARIADB_ROOT_PASSWORD=admin
+      - MARIADB_DATABASE=grommunio
+      - DB_HOST=db
+      - ADMIN_PASS=admin
+      - FQDN=mail.route27.test
+    ports:
+      - '8443:8443'
+    depends_on:
+      - db
+
+
+  grommunio-web:
+    build: ./grommunio-web
+    volumes:
+      - /home/dynamic/Docker-volume/certificates:/home/certificates
+      - /home/dynamic/Docker-volume/gromox-services:/home/gromox-services
+      - /home/dynamic/Docker-volume/plugins:/home/plugins
+      - /home/dynamic/Docker-volume/links:/home/links
+      - /home/dynamic/Docker-volume/nginx:/home/nginx
+
+
+
+
+      - /home/dynamic/Docker-volume/conf.d:/etc/nginx/conf.d/
+
+      - /home/dynamic/Docker-volume/grommunio-admin-common:/usr/share/grommunio-admin-common/
+      - /home/dynamic/Docker-volume/grommunio-admin-common-etc:/etc/grommunio-admin-common/
+
+      - /home/dynamic/Docker-volume/grommunio-common:/usr/share/grommunio-common/
+      - /home/dynamic/Docker-volume/grommunio-common-etc:/etc/grommunio-common/
+
+      - /home/dynamic/Docker-volume/gromox:/run/gromox/
+      - /home/dynamic/Docker-volume/php-fpm:/run/php-fpm
+
+
+    environment:
+      - MARIADB_USER=grommunio
+      - MARIADB_PASSWORD=admin
+      - MARIADB_ROOT_PASSWORD=admin
+      - MARIADB_DATABASE=grommunio
+      - DB_HOST=db
+      - ADMIN_PASS=admin
+      - FQDN=mail.route27.test
+    depends_on:
+      - db
+
+volumes:
+  db:
+    driver: local
