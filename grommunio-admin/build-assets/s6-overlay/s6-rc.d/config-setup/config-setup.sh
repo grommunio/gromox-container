@@ -50,9 +50,5 @@ chmod 775 /etc/gromox
 echo "$LOG_PREFIX Linking gromox services"
 ln -sf /home/gromox-services/* /etc/gromox/
 
-# Gromox-antispam
-echo "$LOG_PREFIX Creating antispam run directory"
-mkdir -p /var/run/grommunio-antispam 
-
 echo "$LOG_PREFIX Finished."
 exit 0
