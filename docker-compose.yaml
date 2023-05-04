@@ -12,16 +12,12 @@ services:
 
 
       - /home/dynamic/Docker-volume/conf.d:/etc/nginx/conf.d/
-
       - /home/dynamic/Docker-volume/grommunio-admin-common:/usr/share/grommunio-admin-common/
       - /home/dynamic/Docker-volume/grommunio-admin-common-etc:/etc/grommunio-admin-common/
-
       - /home/dynamic/Docker-volume/grommunio-common:/usr/share/grommunio-common/
       - /home/dynamic/Docker-volume/grommunio-common-etc:/etc/grommunio-common/
-
       - /home/dynamic/Docker-volume/gromox:/run/gromox/
       - /home/dynamic/Docker-volume/php-fpm:/run/php-fpm
-
 
     environment:
       - MARIADB_USER=grommunio
@@ -67,13 +63,10 @@ services:
 
 
       - /home/dynamic/Docker-volume/conf.d:/etc/nginx/conf.d/
-
       - /home/dynamic/Docker-volume/grommunio-admin-common:/usr/share/grommunio-admin-common/
       - /home/dynamic/Docker-volume/grommunio-admin-common-etc:/etc/grommunio-admin-common/
-
       - /home/dynamic/Docker-volume/grommunio-common:/usr/share/grommunio-common/
       - /home/dynamic/Docker-volume/grommunio-common-etc:/etc/grommunio-common/
-
       - /home/dynamic/Docker-volume/database:/etc/grommunio-admin-api/conf.d/
 
 
@@ -101,16 +94,11 @@ services:
       - /home/dynamic/Docker-volume/nginx:/home/nginx
 
 
-
-
       - /home/dynamic/Docker-volume/conf.d:/etc/nginx/conf.d/
-
       - /home/dynamic/Docker-volume/grommunio-admin-common:/usr/share/grommunio-admin-common/
       - /home/dynamic/Docker-volume/grommunio-admin-common-etc:/etc/grommunio-admin-common/
-
       - /home/dynamic/Docker-volume/grommunio-common:/usr/share/grommunio-common/
       - /home/dynamic/Docker-volume/grommunio-common-etc:/etc/grommunio-common/
-
       - /home/dynamic/Docker-volume/gromox:/run/gromox/
       - /home/dynamic/Docker-volume/php-fpm:/run/php-fpm
 
