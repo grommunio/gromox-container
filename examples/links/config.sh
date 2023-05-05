@@ -1,5 +1,5 @@
-config.sh: |
-    cat > /etc/grommunio-admin-common/config.json<<EOCONF
+#!/bin/sh
+cat > /etc/grommunio-admin-common/config.json<<EOCONF
       {
           "mailWebAddress": "https://${FQDN}/web",
           "chatWebAddress": "https://${FQDN}/chat",
@@ -7,4 +7,4 @@ config.sh: |
           "fileWebAddress": "https://${FQDN}/files",
           "archiveWebAddress": "https://${FQDN}/archive"
       }
-    EOCONF
+EOCONF
