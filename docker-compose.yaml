@@ -117,3 +117,13 @@ services:
 volumes:
   db:
     driver: local
+
+networks:
+  # This network has been created separately
+  #proxynet:
+  #  external: true
+  default:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: "fd12:3456:789a:1::/64"
