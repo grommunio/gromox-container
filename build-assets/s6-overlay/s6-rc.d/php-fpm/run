@@ -1,5 +1,5 @@
 #!/bin/sh -e
 exec 2>&1
-if [ ! -S /run/gromox/php-fpm.sock ]; then
+if [ ! -S /run/php-fpm/php-gromox-fpm.sock ]; then
 	/usr/sbin/php-fpm --nodaemonize
 fi
