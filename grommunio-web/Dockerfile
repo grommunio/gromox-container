@@ -12,7 +12,7 @@ RUN zypper install -y curl && \
   zypper --gpg-auto-import-keys ref && \
   zypper -n refresh grommunio && \
   zypper in -y grommunio-common nginx nginx-module-vts nginx-module-brotli nginx-module-zstd \
-		 grommunio-web vim xz tar wget &&\
+		 grommunio-web vim xz tar wget && \
   zypper clean --all
 
 # Setup S6
