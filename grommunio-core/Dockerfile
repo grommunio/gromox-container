@@ -12,7 +12,7 @@ RUN zypper install -y curl && \
   zypper --gpg-auto-import-keys ref && \
   zypper -n refresh grommunio && \
   zypper in -y gromox grommunio-common mariadb-client nginx nginx-module-vts nginx-module-brotli nginx-module-zstd postfix \
-    grommunio-antispam postfix-mysql grommunio-admin-api grommunio-admin-web grommunio-web vim xz tar && \
+    grommunio-antispam postfix-mysql vim xz tar && \
   zypper clean --all
 
 # Setup S6
