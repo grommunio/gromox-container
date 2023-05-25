@@ -1,5 +1,6 @@
 #!/bin/sh -e
 exec 2>&1
 if [ ! -S /run/php-fpm/php-gromox-fpm.sock ]; then
+	mkdir -p /run/php-fpm/
 	/usr/sbin/php-fpm --nodaemonize
 fi
