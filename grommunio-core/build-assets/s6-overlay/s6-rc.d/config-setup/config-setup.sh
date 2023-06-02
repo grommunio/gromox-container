@@ -37,5 +37,16 @@ ln -sf /home/gromox-services/* /etc/gromox/
 echo "$LOG_PREFIX Creating antispam run directory"
 mkdir -p /var/run/grommunio-antispam 
 
+echo "$LOG_PREFIX Open rspamd on all interfaces"
+echo 'bind_socket = "*:11334";' >> /etc/grommunio-antispam/local.d/worker-controller.inc
+
+echo "$LOG_PREFIX Allow passwordless access on local networks"
+echo 'secure_ip = "172.16.0.0/12";' >> /etc/grommunio-antispam/local.d/worker-controller.inc
+echo 'secure_ip = "192.168.0.0/16";' >> /etc/grommunio-antispam/local.d/worker-controller.inc
+echo 'secure_ip = "10.0.0.0/8";' >> /etc/grommunio-antispam/local.d/worker-controller.inc
+echo 'secure_ip = "fd00::/8";' >> /etc/grommunio-antispam/local.d/worker-controller.inc
+echo 'secure_ip = "169.254.0.0/16";' >> /etc/grommunio-antispam/local.d/worker-controller.inc
+echo 'secure_ip = "fe80::/10";' >> /etc/grommunio-antispam/local.d/worker-controller.inc
+
 echo "$LOG_PREFIX Finished."
 exit 0

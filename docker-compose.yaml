@@ -5,8 +5,6 @@ services:
     volumes:
       - /srv/docker/gromox/certificates:/home/certificates
       - /srv/docker/gromox/gromox-services:/home/gromox-services
-      - /srv/docker/gromox/plugins:/home/plugins
-      - /srv/docker/gromox/links:/home/links
       - /srv/docker/gromox/nginx:/home/nginx
     environment:
       - MARIADB_USER=grommunio
@@ -19,6 +17,7 @@ services:
       - S6_VERBOSITY=3
     ports:
       - '443:443'
+      - '11334:11334'
     depends_on:
       db:
         condition: service_started
@@ -48,7 +47,6 @@ services:
     build: ./grommunio-admin
     volumes:
       - /srv/docker/gromox/certificates:/home/certificates
-      - /srv/docker/gromox/gromox-services:/home/gromox-services
       - /srv/docker/gromox/plugins:/home/plugins
       - /srv/docker/gromox/links:/home/links
       - /srv/docker/gromox/nginx:/home/nginx
@@ -72,33 +70,6 @@ services:
           - grommunio-admin
       default:
 
-
-  grommunio-web:
-    build: ./grommunio-web
-    volumes:
-      - /srv/docker/gromox/certificates:/home/certificates
-      - /srv/docker/gromox/gromox-services:/home/gromox-services
-      - /srv/docker/gromox/plugins:/home/plugins
-      - /srv/docker/gromox/links:/home/links
-      - /srv/docker/gromox/nginx:/home/nginx
-    environment:
-      - MARIADB_USER=grommunio
-      - MARIADB_PASSWORD=admin
-      - MARIADB_ROOT_PASSWORD=admin
-      - MARIADB_DATABASE=grommunio
-      - DB_HOST=db
-      - FQDN=mail.route27.test
-      - S6_VERBOSITY=3
-    #ports:
-    #  - '443:443'
-    depends_on:
-      db:
-        condition: service_started
-    networks:
-      proxynet:
-        aliases: 
-          - grommunio-web
-      default:
 
 volumes:
   db:
