@@ -1,7 +1,7 @@
 version: "3.9"
 services:
-  grommunio:
-    build: ./grommunio-core
+  core:
+    image: grommunio/gromox-core:0.3-opensuse-leap-15-4
     volumes:
       - /srv/docker/gromox/certificates:/home/certificates
       - /srv/docker/gromox/gromox-services:/home/gromox-services
@@ -43,8 +43,8 @@ services:
         aliases:
           - db
 
-  grommunio-admin:
-    build: ./grommunio-admin
+  admin:
+    image: grommunio/grommunio-admin:0.1-opensuse-leap-15-4
     volumes:
       - /srv/docker/gromox/certificates:/home/certificates
       - /srv/docker/gromox/plugins:/home/plugins

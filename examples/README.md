@@ -56,6 +56,7 @@ sudo docker compose up
     ```
     https://localhost:8443/
     ```
+* Note: You may need to update the IP addresses in the [conf.yaml](plugins/conf.yaml) file if you change the service tags.
 
 **Default login details**
 

@@ -1,3 +1,5 @@
 sync:
   connection:
-    host: http://localhost:6379
+    host: http://core:6379
+options:
+  antispamUrl: http://core:11334
