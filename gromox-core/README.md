@@ -8,7 +8,7 @@ This will build a container for the Gromox core of the [Grommunio](https://gromm
 * Grommunio Core (gromox-http, gromox-antispam, gromox-event, gromox-midb, gromox-postfix,gromox-timer, gromox-zcore, gromox-imap, gromox-pop3, gromox-delivery, gromox-delivery-queue, nginx, redis and php-fpm)
 * Configurable via config files and environment variables. *Future versions will configure all variables via the environment*
 
-* This Container uses a [OpenSuse Linux base](https://hub.docker.com/r/opensuse/leap) and includes [s6 overlay](https://github.com/just-containers/s6-overlay) enabled for PID 1 Init capabilities. 
+* This Container uses a [OpenSuse Leap 15.4 base](https://hub.docker.com/r/opensuse/leap) and includes [s6 overlay](https://github.com/just-containers/s6-overlay) enabled for PID 1 Init capabilities. 
 
 *This is an incredibly complex piece of software that tries to get you up and running with sane defaults, you will need to switch eventually over to manually configuring the configuration file when depending on your usage case.* 
 
