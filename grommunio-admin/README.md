@@ -1,14 +1,13 @@
-# docker-gromox-core
+# docker-grommunio-admin
 
 ## About
 
-This will build a container for the [Grommunio Core](https://grommunio.com/) suite.
+This will build a container for the Grommunio Admin service within [Grommunio Core](https://grommunio.com/) suite.
 
 * Automatic configuration of various services
-* Grommunio Core (gromox-http, gromox-antispam, gromox-event, gromox-midb, gromox-postfix,gromox-timer, gromox-zcore, gromox-imap, gromox-pop3, gromox-delivery, gromox-delivery-queue, gromox-admin, nginx, redis and php-fpm)
 * Configurable via config files and environment variables. *Future versions will configure all variables via the environment*
 
-* This Container uses a [OpenSuse Linux base](https://hub.docker.com/r/opensuse/leap) and includes [s6 overlay](https://github.com/just-containers/s6-overlay) enabled for PID 1 Init capabilities. 
+* This Container uses a [OpenSuse Leap 15.4 base](https://hub.docker.com/r/opensuse/leap) and includes [s6 overlay](https://github.com/just-containers/s6-overlay) enabled for PID 1 Init capabilities. 
 
 *This is an incredibly complex piece of software that tries to get you up and running with sane defaults, you will need to switch eventually over to manually configuring the configuration file when depending on your usage case.* 
 
@@ -36,16 +35,18 @@ A useful prerequisite is to read the [grommunio documentation](https://docs.grom
 
 ## Installation
 
-Automated builds of the image are available on [Docker Hub](https://hub.docker.com/r/grommunio/gromox-core) and is the recommended
+Automated builds of the image are available on [Docker Hub](https://hub.docker.com/r/grommunio/grommunio-admin) and is the recommended
 method of installation.
 
 ```bash
-docker pull grommunio/gromox-core:latest
+docker pull grommunio/grommunio-admin:latest
 ```
 
 ### Quick Start
 
-* The quickest way to get started is using [docker-compose](https://docs.docker.com/compose/) or [kubernetes](https://kubernetes.io/). See the examples folder for a working [docker-compose example](examples/) and [kubernetes example](https://github.com/grommunio/gromox-kubernetes) that can be modified (and **should be**) for development or production use.
+* The quickest way to get started is using [docker-compose](https://docs.docker.com/compose/) or [kubernetes](https://kubernetes.io/). See the examples folder for a working [docker-compose example](../examples/) and [kubernetes example](https://github.com/grommunio/gromox-kubernetes) that can be modified (and **should be**) for development or production use.
+
+* Access to Grommunio Admin is available at `https://<your FQDN/IP>:8443`
 
 * Set various [environment variables](#environment-variables) to understand the capabiltiies of this image.
 * Map [persistent storage](#persistent-volumes) for access to configuration and data files for backup.
@@ -60,7 +61,6 @@ The following directories are used for configuration and can be mapped for persi
 | ---------- | --------------------------------------------------------------------------------------------------- |
 | `/home/certificates/`   | Certificates for nginx and other services. |
 | `/home/plugins/` | YAML configuration files for Grommunio admin API |
-| `/home/gromox-services/` | Configuration files for http, imap, pop3, mysql connection, smtp and others that will reside in `/etc/gromox`  |
 | `/home/links/`   | Configuration files for nginx additions and a script to generate grommunio admin API links to Grommunio web, Grommunio Meet e.t.c. |
 | `/home/nginx/`   | SSL certificate configuration for Nginx  |
 
@@ -87,13 +87,3 @@ Below is the complete list of available options that can be used to customize yo
 | `MARIADB_ROOT_PASSWORD` | MariaDB Root Password                    |                |
 | `MARIADB_USER`          | MariaDB Username for above Database      | `grommunio`    |
 | `MARIADB_PASSWORD`      | MariaDB Password for above Database      |                |
-
-
-### Shell Access
-
-For debugging and maintenance purposes you may want access the containers shell.
-
-```bash
-docker exec -it (whatever your container name is e.g.) gromox bash
-```
-
