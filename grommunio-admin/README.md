@@ -1,14 +1,14 @@
-# Grommunio Containers
-
-Build the containers for Gromox and Grommunio Admin
+# docker-gromox-core
 
 ## About
 
-* [Gromox Core](gromox-core/README.md)
-* [Grommunio Admin](grommunio-admin/README.md)
+This will build a container for the [Grommunio Core](https://grommunio.com/) suite.
 
+* Automatic configuration of various services
+* Grommunio Core (gromox-http, gromox-antispam, gromox-event, gromox-midb, gromox-postfix,gromox-timer, gromox-zcore, gromox-imap, gromox-pop3, gromox-delivery, gromox-delivery-queue, gromox-admin, nginx, redis and php-fpm)
+* Configurable via config files and environment variables. *Future versions will configure all variables via the environment*
 
-The container use a [OpenSuse Leap 15.4 base](https://hub.docker.com/r/opensuse/leap) and includes [s6 overlay](https://github.com/just-containers/s6-overlay) enabled for PID 1 Init capabilities. 
+* This Container uses a [OpenSuse Linux base](https://hub.docker.com/r/opensuse/leap) and includes [s6 overlay](https://github.com/just-containers/s6-overlay) enabled for PID 1 Init capabilities. 
 
 *This is an incredibly complex piece of software that tries to get you up and running with sane defaults, you will need to switch eventually over to manually configuring the configuration file when depending on your usage case.* 
 
@@ -20,22 +20,27 @@ The container use a [OpenSuse Leap 15.4 base](https://hub.docker.com/r/opensuse/
 
 ## Table of Contents
 
+- [Introduction](#introduction)
+- [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
-    - [Persistent Volumes](#persistent-volumes)
-    - [Environment Variables](#environment-variables)
+    - [Persistent Volumes](#data-volumes)
+    - [Environment Variables](#environmentvariables)
 - [Shell Access](#shell-access)
 
+## Prerequisites and Assumptions
+
+This image assumes that you have an external [MySQL/MariaDB](https://hub.docker.com/_/mysql) Container.
+A useful prerequisite is to read the [grommunio documentation](https://docs.grommunio.com/)
 
 ## Installation
 
-Automated builds of the image are available on [Docker Hub](https://hub.docker.com/r/grommunio/) and is the recommended
+Automated builds of the image are available on [Docker Hub](https://hub.docker.com/r/grommunio/gromox-core) and is the recommended
 method of installation.
 
 ```bash
 docker pull grommunio/gromox-core:latest
-docker pull grommunio/grommunio-admin:latest
 ```
 
 ### Quick Start
@@ -71,7 +76,6 @@ Below is the complete list of available options that can be used to customize yo
 | ------------------ | -------------------------------------------------------------------------------------------------------------------- | ---------- |
 | `FQDN`             | Fully Qualified Domain Name                                                                                          | `mail.route27.test` |
 | `ADMIN_PASS`       | Password for Admin user on Admin API                                                                                 |                     |
-| `S6_VERBOSITY=3`   | Set the verbosity level of S6 logging                                                                                | 3                   |
 
 
 #### Database Options
@@ -83,4 +87,13 @@ Below is the complete list of available options that can be used to customize yo
 | `MARIADB_ROOT_PASSWORD` | MariaDB Root Password                    |                |
 | `MARIADB_USER`          | MariaDB Username for above Database      | `grommunio`    |
 | `MARIADB_PASSWORD`      | MariaDB Password for above Database      |                |
+
+
+### Shell Access
+
+For debugging and maintenance purposes you may want access the containers shell.
+
+```bash
+docker exec -it (whatever your container name is e.g.) gromox bash
+```
 
