@@ -73,7 +73,7 @@ Below is the complete list of available options that can be used to customize yo
 | ------------------ | -------------------------------------------------------------------------------------------------------------------- | ---------- |
 | `FQDN`             | Fully Qualified Domain Name                                                                                          | `mail.route27.test` |
 | `ADMIN_PASS`       | Password for Admin user on Admin API                                                                                 |                     |
-| `S6_VERBOSITY=3`   | Set the verbosity level of S6 logging                                                                                | 3                   |
+| `S6_VERBOSITY`   | Set the verbosity level of S6 logging                                                                                | 3                   |
 
 
 #### Database Options
