@@ -6,6 +6,9 @@ services:
       - /srv/docker/gromox/certificates:/home/certificates
       - /srv/docker/gromox/gromox-services:/home/gromox-services
       - /srv/docker/gromox/nginx:/home/nginx
+      - /srv/docker/gromox/user-data:/var/lib/gromox/user
+      - /srv/docker/gromox/domain-data:/var/lib/gromox/domain
+    restart: on-failure
     environment:
       - MARIADB_USER=grommunio
       - MARIADB_PASSWORD=admin
@@ -20,7 +23,7 @@ services:
       - '11334:11334'
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
     networks:
       proxynet:
         aliases: 
@@ -29,7 +32,7 @@ services:
 
 
   db:
-    image: mariadb
+    image: mariadb:10
     environment:
       - MARIADB_DATABASE=grommunio
       - MARIADB_USER=grommunio
@@ -38,6 +41,12 @@ services:
       - MARIADB_ROOT_HOST=%
     volumes:
       - /srv/docker/gromox/db:/var/lib/mysql
+    restart: on-failure
+    healthcheck:
+      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
+      interval: 30s
+      timeout: 10s
+      retries: 5
     networks:
       default:
         aliases:
@@ -50,6 +59,8 @@ services:
       - /srv/docker/gromox/plugins:/home/plugins
       - /srv/docker/gromox/links:/home/links
       - /srv/docker/gromox/nginx:/home/nginx
+      - /srv/docker/gromox/user-data:/var/lib/gromox/user
+      - /srv/docker/gromox/domain-data:/var/lib/gromox/domain
     environment:
       - MARIADB_USER=grommunio
       - MARIADB_PASSWORD=admin
@@ -59,21 +70,18 @@ services:
       - ADMIN_PASS=admin
       - FQDN=mail.route27.test
       - S6_VERBOSITY=3
+    restart: on-failure
     ports:
       - '8443:8443'
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
     networks:
       proxynet:
         aliases: 
           - grommunio-admin
       default:
 
-
-volumes:
-  db:
-    driver: local
 
 networks:
   # This network has been created separately
