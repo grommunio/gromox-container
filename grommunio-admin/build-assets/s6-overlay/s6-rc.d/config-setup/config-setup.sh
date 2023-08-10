@@ -26,6 +26,10 @@ if [ ! -f /etc/grommunio-admin-common/nginx-ssl.conf ]; then
 	ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf
 fi
 
+echo "$LOG_PREFIX Setting gromox folder permissions"
+chown gromox:gromox /var/lib/gromox
+chmod a+rwX /var/lib/gromox
+
 echo "$LOG_PREFIX Setting admin password"
 grommunio-admin passwd -p $ADMIN_PASS 
 

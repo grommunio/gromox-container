@@ -26,6 +26,9 @@ chown root:gromox /etc/gromox
 chown root:gromox /home/certificates/cert.key
 chmod 775 /etc/gromox 
 
+chown gromox:gromox /var/lib/gromox
+chmod a+rwX /var/lib/gromox
+
 echo "$LOG_PREFIX Setting permissions on gromox socket folder"
 mkdir -p /run/gromox
 chown gromox:gromox /run/gromox
