@@ -1,8 +1,8 @@
-FROM opensuse/leap:15.4
+FROM opensuse/leap:15.5
 
-ARG GROMMUNIO_REPO=openSUSE_Leap_15.4
+ARG GROMMUNIO_REPO=openSUSE_Leap_15.5
 
-ARG S6_OVERLAY_VERSION=3.1.4.1
+ARG S6_OVERLAY_VERSION=3.1.5.0
 
 # Install Grommunio packages
 RUN zypper install -y curl && \
