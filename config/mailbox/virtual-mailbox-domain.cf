@@ -1,0 +1,5 @@
+user = ${MYSQL_USER}
+password = ${MYSQL_PASS}
+hosts = ${MYSQL_HOST}
+dbname = ${MYSQL_DB}
+query = SELECT 1 FROM domains WHERE domain_status=0 AND domainname='%s'

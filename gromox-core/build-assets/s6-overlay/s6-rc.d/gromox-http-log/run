@@ -1,2 +1,0 @@
-#!/command/execlineb -P
-/etc/s6-overlay/common/log-prefix p[http]

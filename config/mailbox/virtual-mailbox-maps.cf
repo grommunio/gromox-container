@@ -1,0 +1,5 @@
+user = ${MYSQL_USER}
+password = ${MYSQL_PASS}
+hosts = ${MYSQL_HOST}
+dbname = ${MYSQL_DB}
+query = SELECT 1 FROM users WHERE username='%s'

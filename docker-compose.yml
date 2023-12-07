@@ -1,0 +1,27 @@
+version: '3'
+services:
+  open-suse-sysbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    runtime: sysbox-runc
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RESOURCE
+    volumes:
+      - opensuse-data:/data
+    ports:
+      - "22"  # SSH
+    tty: true
+    stdin_open: true
+    environment:
+      - container=docker
+
+volumes:
+  opensuse-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/opensuse-data

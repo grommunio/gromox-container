@@ -1,0 +1,5 @@
+DB:
+  host: '${MYSQL_HOST}'
+  user: '${MYSQL_USER}'
+  pass: '${MYSQL_PASS}'
+  database: '${MYSQL_DB}'
