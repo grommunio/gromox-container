@@ -1,5 +1,23 @@
 version: '3'
 services:
+
+  mysql:
+    image: mysql:latest
+    container_name: mysql_container
+    environment:
+      MYSQL_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
+      MYSQL_DATABASE: grommunio
+      MYSQL_USER: grommunio
+      MYSQL_PASSWORD: Lu3s3WmFxXghtLwJnuqN
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      mynet:
+        ipv4_address: 17.18.0.2  # Specify the fixed IP address you want
+    restart: always  # Set the restart policy to "always"
+    
   open-suse-sysbox:
     build:
       context: .
@@ -11,12 +29,22 @@ services:
       - SYS_RESOURCE
     volumes:
       - opensuse-data:/data
+    networks:
+      mynet:
+        ipv4_address: 17.18.0.3
     ports:
       - "22"  # SSH
     tty: true
     stdin_open: true
     environment:
       - container=docker
+networks:
+  mynet:
+    driver: bridge
+    ipam:
+      config:
+        -  subnet: 17.18.0.0/24
+           gateway: 17.18.0.1 
 
 volumes:
   opensuse-data:

@@ -51,8 +51,11 @@ RUN zypper -n install \
     useradd -m -s /bin/bash -G wheel admin &&                        \                         
     echo "admin:admin" | chpasswd
 
-chmod +x entrypoint.sh
-RUN sh entrypoint.sh
+COPY scripts /home/scripts
+COPY common /home/common
+COPY entrypoint.sh /home/entrypoint.sh
+RUN chmod +x /home/entrypoint.sh
+RUN sh /home/entrypoint.sh
 # Make use of stopsignal (instead of sigterm) to stop systemd containers.
 
 
