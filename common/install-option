@@ -1,7 +1,7 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # SPDX-FileCopyrightText: 2021 grommunio GmbH
-for i in $(cat ${TMPF}) ; do
+for i in $(cat ${INSTALL-VALUE}) ; do
     if ! [ "$i" == "core" ] && ! [ "$1" == "meet" ] ; then
       eval FT_${i^^}=true
       FT_PACKAGES="$FT_PACKAGES grommunio-${i}"

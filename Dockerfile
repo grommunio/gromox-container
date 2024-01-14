@@ -50,9 +50,9 @@ RUN zypper -n install \
     groupadd 'wheel' &&                                        \
     useradd -m -s /bin/bash -G wheel admin &&                        \                         
     echo "admin:admin" | chpasswd
-
 COPY scripts /home/scripts
 COPY common /home/common
+COPY config /home/config
 COPY entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
 RUN sh /home/entrypoint.sh

@@ -34,6 +34,7 @@ services:
         ipv4_address: 17.18.0.3
     ports:
       - "22"  # SSH
+      - "8443" # Grommunio Admin
     tty: true
     stdin_open: true
     environment:
@@ -47,6 +48,7 @@ networks:
            gateway: 17.18.0.1 
 
 volumes:
+  mysql_data:
   opensuse-data:
     driver: local
     driver_opts:
