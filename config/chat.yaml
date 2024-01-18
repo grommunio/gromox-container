@@ -1,8 +1,8 @@
 chat:
   connection:
     login_id: admin
-    password: '${CHAT_ADMIN_PASS}'
-    url: ${FQDN}
+    password: 'grommunio'
+    url: localhost
     basepath: /chat/api/v4
     port: 443
     scheme: https

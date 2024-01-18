@@ -5,7 +5,7 @@
 
 DATADIR="${0%/*}"
 if [ "${DATADIR}" = "$0" ]; then
-	DATADIR="/usr/share/grommunio-setup"
+	DATADIR="/home"
 else
 	DATADIR="$(readlink -f "$0")"
 	DATADIR="${DATADIR%/*}"
@@ -31,7 +31,6 @@ memory_check()
   if [ -z "${HAVE}" ] || [ "${HAVE}" -ge "${THRES}" ]; then
     return 0
   fi
-  writelog "Memory check"
   memory_notice $((HAVE/1024)) $((ASK/1024))
 
 }
@@ -74,7 +73,7 @@ unset REPO_PATH
 REPO_USER="your_repo_user"
 REPO_PASS="your_repo_password"
 # shellcheck source=common/repo
-INSTALL-VALUE= "core, office, archive, meet"
+INSTALLVALUE="core, chat, files, office, archive"
 PACKAGES="gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
   grommunio-common grommunio-web grommunio-sync grommunio-dav \
   mariadb php-fpm cyrus-sasl-saslauthd cyrus-sasl-plain postfix jq"
@@ -106,6 +105,44 @@ done
 RELAYHOST=$(get_relayhost)
 
 X500="i$(printf "%llx" "$(date +%s)")"
+#Choose Install type, 0 for self signed, 2 to provide certificate and 3 for letsencrypt.
+SSL_INSTALL_TYPE=0
+
+SSL_COUNTRY="XX"
+SSL_STATE="XX"
+SSL_LOCALITY="X"
+SSL_ORG="grommunio Appliance"
+SSL_OU="IT"
+SSL_EMAIL="admin@${DOMAIN}"
+SSL_DAYS=30
+SSL_PASS=grommunio
+
+. "/home/common/ssl_setup"
+mkdir /etc/grommunio-common/ssl
+RETCMD=1
+if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
+  clear
+  if ! selfcert; then
+  touch ssle
+  fi
+elif [ "${SSL_INSTALL_TYPE}" = "2" ]; then
+  choose_ssl_selfprovided
+  fullca
+  SSL_BUNDLE=/home/ssl/grommox.pem
+  SSL_KEY=/home/ssl/grommox.pem
+  while [ ${RETCMD} -ne 0 ]; do
+    owncert
+    RETCMD=$?
+  done
+elif [ "${SSL_INSTALL_TYPE}" = "3" ]; then
+  choose_ssl_letsencrypt
+  #this should containe the domain to signed by certbot
+  SSL_DOMAINS=$FQDN
+
+  #This should contain the email
+  SSL_EMAIL=email@$FQDN
+  letsencrypt
+fi
 
 [ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
 
@@ -119,24 +156,10 @@ EOF
 
 echo "{ \"mailWebAddress\": \"https://${FQDN}/web\", \"rspamdWebAddress\": \"https://${FQDN}:8443/antispam/\" }" | jq > /tmp/config.json
 
-if [ "$FT_CHAT" == "true" ] ; then
-
+if [[ $INSTALLVALUE == *"chat"* ]] ; then
   systemctl stop grommunio-chat
-  CHAT_MYSQL_HOST="localhost"
-  CHAT_MYSQL_USER="grochat"
-  CHAT_MYSQL_PASS=$(randpw)
-  CHAT_MYSQL_DB="grochat"
-  CHAT_CONFIG="/etc/grommunio-chat/config.json"
-  set_chat_mysql_param
-  if [ "${CHAT_MYSQL_HOST}" == "localhost" ] ; then
-    echo "drop database if exists ${CHAT_MYSQL_DB}; \
-          create database ${CHAT_MYSQL_DB}; \
-          grant all on ${CHAT_MYSQL_DB}.* to '${CHAT_MYSQL_USER}'@'${CHAT_MYSQL_HOST}' identified by '${CHAT_MYSQL_PASS}';" | mysql >/dev/null 2>&1
-  else
-    echo "drop database if exists ${CHAT_MYSQL_DB}; \
-          create database ${CHAT_MYSQL_DB};" | mysql -h"${CHAT_MYSQL_HOST}" -u"${CHAT_MYSQL_USER}" -p"${CHAT_MYSQL_PASS}" "${CHAT_MYSQL_DB}" >/dev/null 2>&1
-  fi
-
+  chmod +x /home/scripts/chat.sh
+  . /home/scripts/chat.sh
   CHAT_DB_CON="${CHAT_MYSQL_USER}:${CHAT_MYSQL_PASS}@tcp\(${CHAT_MYSQL_HOST}:3306\)\/${CHAT_MYSQL_DB}?charset=utf8mb4,utf8\&readTimeout=30s\&writeTimeout=30s"
   sed -i 's#^.*"DataSource":.*#        "DataSource": "'${CHAT_DB_CON}'",#g' "${CHAT_CONFIG}"
   sed -i 's#^.*"DriverName": "postgres".*#        "DriverName": "mysql",#g' "${CHAT_CONFIG}"
@@ -172,29 +195,14 @@ cp /home/config/chat.yaml /etc/grommunio-admin-api/conf.d/chat.yaml
 
 fi
 
-if [ "$FT_MEET" == "true" ] ; then
-  writelog "Config feature meet: Starting to setup meet."
-
-  . "${DATADIR}/parts/grommunio-meet.sh"
-
-  jq '.videoWebAddress |= "https://'${FQDN}'/meet"' /tmp/config.json > /tmp/config-new.json
-  mv /tmp/config-new.json /tmp/config.json
-
-fi
-
-progress 0
 zypper install -y mariadb vim php-fpm cyrus-sasl-saslauthd cyrus-sasl-plain postfix postfix-mysql >>"${LOGFILE}" 2>&1
 
-progress 10
 systemctl enable redis@grommunio.service gromox-delivery.service gromox-event.service \
   gromox-http.service gromox-imap.service gromox-midb.service gromox-pop3.service \
   gromox-delivery-queue.service gromox-timer.service gromox-zcore.service grommunio-antispam.service \
   php-fpm.service nginx.service grommunio-admin-api.service saslauthd.service mariadb >>"${LOGFILE}" 2>&1
 
-progress 20
 systemctl start mariadb >>"${LOGFILE}" 2>&1
-
-writelog "Config stage: put php files into place"
 if [ -d /etc/php8 ]; then
   if [ -e "/etc/php8/fpm/php-fpm.conf.default" ] ; then
     mv /etc/php8/fpm/php-fpm.conf.default /etc/php8/fpm/php-fpm.conf
@@ -213,17 +221,15 @@ setconf /etc/gromox/http.cfg host_id ${FQDN}
 
 setconf /etc/gromox/smtp.cfg listen_port 24
 
-writelog "Config stage: pam config"
-progress 30
 cp /etc/pam.d/smtp /etc/pam.d/smtp.save
 cp /home/config/smtp /etc/pam.d/smtp
 
-writelog "Config stage: database creation"
-progress 40
-echo "create database grommunio; grant all on grommunio.* to 'grommunio'@'localhost' identified by '${MYSQL_PASS}';" | mysql
+echo "create database grommunio; grant all on grommunio.* to 'grommunio'@'localhost' identified by 'grommunio';" | mysql
 echo "# Do not delete this file unless you know what you do!" > /etc/grommunio-common/setup_done
 
-writelog "Config stage: database configuration"
+chmod +x /home/scripts/mysql.sh
+. /home/scripts/mysql.sh
+
 setconf /etc/gromox/mysql_adaptor.cfg mysql_username "${MYSQL_USER}"
 setconf /etc/gromox/mysql_adaptor.cfg mysql_password "${MYSQL_PASS}"
 setconf /etc/gromox/mysql_adaptor.cfg mysql_dbname "${MYSQL_DB}"
@@ -233,22 +239,16 @@ fi
 
 cp -f /etc/gromox/mysql_adaptor.cfg /etc/gromox/adaptor.cfg >>"${LOGFILE}" 2>&1
 
-writelog "Config stage: autodiscover configuration"
-progress 50
-cp /home/config/autodiscover.ini /etc/gromox/autodiscover.ini 
 
-writelog "Config stage: database initialization"
+cp /home/config/autodiscover.ini /etc/gromox/autodiscover.ini 
 gromox-dbop -C >>"${LOGFILE}" 2>&1
 
 cp /home/config/database.yaml /etc/grommunio-admin-api/conf.d/database.yaml
 
-writelog "Config stage: admin password set"
-progress 60
 grommunio-admin passwd --password "${ADMIN_PASS}" >>"${LOGFILE}" 2>&1
 
 rspamadm pw -p "${ADMIN_PASS}" | sed -e 's#^#password = "#' -e 's#$#";#' > /etc/grommunio-antispam/local.d/worker-controller.inc
 
-writelog "Config stage: gromox tls configuration"
 setconf /etc/gromox/http.cfg http_certificate_path "${SSL_BUNDLE_T}"
 setconf /etc/gromox/http.cfg http_private_key_path "${SSL_KEY_T}"
 
@@ -267,16 +267,12 @@ ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-comm
 chown gromox:gromox /etc/grommunio-common/ssl/*
 
 # Domain and X500
-writelog "Config stage: gromox domain and x500 configuration"
 for SERVICE in http midb zcore imap pop3 smtp delivery ; do
   setconf /etc/gromox/${SERVICE}.cfg default_domain "${DOMAIN}"
 done
 for CFG in midb.cfg zcore.cfg exmdb_local.cfg exmdb_provider.cfg exchange_emsmdb.cfg exchange_nsp.cfg ; do
   setconf "/etc/gromox/${CFG}" x500_org_name "${X500}"
 done
-
-writelog "Config stage: postfix configuration"
-progress 80
 
 cp /home/config/mailbox/virtual-mailbox-domain.cf /etc/postfix/grommunio-virtual-mailbox-domains.cf 
 
@@ -285,39 +281,24 @@ cp /home/config/mailbox/virtual-mailbox-alias-maps.cf /etc/postfix/grommunio-vir
 cp /home/config/mailbox/virtual-mailbox-maps.cf /etc/postfix/grommunio-virtual-mailbox-maps.cf 
 sh /home/scripts/postconf.sh
 
-writelog "Config stage: postfix enable and restart"
 systemctl enable postfix.service >>"${LOGFILE}" 2>&1
 systemctl restart postfix.service >>"${LOGFILE}" 2>&1
 
 systemctl enable grommunio-fetchmail.timer >>"${LOGFILE}" 2>&1
 systemctl start grommunio-fetchmail.timer >>"${LOGFILE}" 2>&1
 
-writelog "Config stage: open required firewall ports"
+chmod +x /home/scripts/firewall.sh
 sh /home/scripts/firewall.sh
 
-progress 90
-writelog "Config stage: restart all required services"
 systemctl restart redis@grommunio.service nginx.service php-fpm.service gromox-delivery.service \
   gromox-event.service gromox-http.service gromox-imap.service gromox-midb.service \
   gromox-pop3.service gromox-delivery-queue.service gromox-timer.service gromox-zcore.service \
   grommunio-admin-api.service saslauthd.service grommunio-antispam.service >>"${LOGFILE}" 2>&1
 
-if [ "$FT_FILES" == "true" ] ; then
+if [[ $INSTALLVALUE == *"files"* ]] ; then
 
-  FILES_MYSQL_HOST="localhost"
-  FILES_MYSQL_USER="grofiles"
-  FILES_MYSQL_PASS=$(randpw)
-  FILES_MYSQL_DB="grofiles"
-  set_files_mysql_param
-  if [ "${FILES_MYSQL_HOST}" == "localhost" ] ; then
-    echo "drop database if exists ${FILES_MYSQL_DB}; \
-          create database ${FILES_MYSQL_DB}; \
-          grant all on ${FILES_MYSQL_DB}.* to '${FILES_MYSQL_USER}'@'${FILES_MYSQL_HOST}' identified by '${FILES_MYSQL_PASS}';" | mysql >/dev/null 2>&1
-  else
-    echo "drop database if exists ${FILES_MYSQL_DB}; \
-          create database ${FILES_MYSQL_DB};" | mysql -h"${FILES_MYSQL_HOST}" -u"${FILES_MYSQL_USER}" -p"${FILES_MYSQL_PASS}" "${FILES_MYSQL_DB}" >/dev/null 2>&1
-  fi
-  dialog_files_adminpass
+  chmod +x /home/scripts/files.sh
+. /home/scripts/files.sh
 
 cp /home/config/config.php /usr/share/grommunio-files/config/config.php 
 
@@ -333,21 +314,9 @@ sh /home/scripts/pushd.sh
 
 fi
 
-if [ "$FT_OFFICE" == "true" ] ; then
-  writelog "Config stage: install office"
-  OFFICE_MYSQL_HOST="localhost"
-  OFFICE_MYSQL_USER="groffice"
-  OFFICE_MYSQL_PASS=$(randpw)
-  OFFICE_MYSQL_DB="groffice"
-  set_office_mysql_param
-  if [ "${OFFICE_MYSQL_HOST}" == "localhost" ] ; then
-    echo "drop database if exists ${OFFICE_MYSQL_DB}; \
-          create database ${OFFICE_MYSQL_DB}; \
-          grant all on ${OFFICE_MYSQL_DB}.* to '${OFFICE_MYSQL_USER}'@'${OFFICE_MYSQL_HOST}' identified by '${OFFICE_MYSQL_PASS}';" | mysql >/dev/null 2>&1
-  else
-    echo "drop database if exists ${OFFICE_MYSQL_DB}; \
-          create database ${OFFICE_MYSQL_DB};" | mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" >/dev/null 2>&1
-  fi
+if [[ $INSTALLVALUE == *"office"* ]] ; then
+chmod +x /home/scripts/office.sh
+. /home/scripts/office.sh
 
   sed -i -e "/^CREATE DATABASE/d" -e "/^USE/d" /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
   mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" < /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
@@ -374,22 +343,10 @@ if [ "$FT_OFFICE" == "true" ] ; then
   popd || return
 fi
 
-if [ "$FT_ARCHIVE" == "true" ] ; then
-  writelog "Config stage: install archive"
+if [[ $INSTALLVALUE == *"archive"* ]] ; then
 
-  ARCHIVE_MYSQL_HOST="localhost"
-  ARCHIVE_MYSQL_USER="groarchive"
-  ARCHIVE_MYSQL_PASS=$(randpw)
-  ARCHIVE_MYSQL_DB="groarchive"
-  set_archive_mysql_param
-  if [ "${ARCHIVE_MYSQL_HOST}" == "localhost" ] ; then
-    echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
-          create database ${ARCHIVE_MYSQL_DB}; \
-          grant all on ${ARCHIVE_MYSQL_DB}.* to '${ARCHIVE_MYSQL_USER}'@'${ARCHIVE_MYSQL_HOST}' identified by '${ARCHIVE_MYSQL_PASS}';" | mysql >/dev/null 2>&1
-  else
-    echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
-          create database ${ARCHIVE_MYSQL_DB};" | mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" >/dev/null 2>&1
-  fi
+chmod +x /home/scripts/archive.sh
+. /home/scripts/archive.sh
 
   mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" < /usr/share/grommunio-archive/db-mysql.sql
 
@@ -419,7 +376,6 @@ if [ "$FT_ARCHIVE" == "true" ] ; then
 
   < /dev/urandom head -c 56 > /etc/grommunio-archive/grommunio-archive.key
 
-  writelog "Config stage: archive+postfix enable and restart"
   systemctl enable searchd.service grommunio-archive-smtp.service grommunio-archive.service postfix.service >>"${LOGFILE}" 2>&1
   systemctl restart searchd.service grommunio-archive-smtp.service grommunio-archive.service postfix.service >>"${LOGFILE}" 2>&1
 
@@ -430,8 +386,6 @@ fi
 mv /tmp/config.json /etc/grommunio-admin-common/config.json
 systemctl restart grommunio-admin-api.service
 
-progress 100
-writelog "Config stage: completed"
 setup_done
 
 exit 0

@@ -55,7 +55,7 @@ COPY common /home/common
 COPY config /home/config
 COPY entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
-RUN sh /home/entrypoint.sh
+RUN yes | sh /home/entrypoint.sh
 # Make use of stopsignal (instead of sigterm) to stop systemd containers.
 
 
