@@ -1,5 +1,5 @@
-user = ${MYSQL_USER}
-password = ${MYSQL_PASS}
-hosts = ${MYSQL_HOST}
-dbname = ${MYSQL_DB}
+user = grommunio
+password = Lu3s3WmFxXghtLwJnuqN
+hosts = localhost
+dbname = grommunio
 query = SELECT 1 FROM domains WHERE domain_status=0 AND domainname='%s'

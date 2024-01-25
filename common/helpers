@@ -1,0 +1,129 @@
+#!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2021 grommunio GmbH
+
+: "${DIALOG_OK=0}"
+: "${DIALOG_CANCEL=1}"
+: "${DIALOG_HELP=2}"
+: "${DIALOG_EXTRA=3}"
+: "${DIALOG_ITEM_HELP=4}"
+: "${DIALOG_ESC=255}"
+
+dialog_exit(){
+
+  case $1 in
+    "$DIALOG_CANCEL")
+      exit_default "cancelled.";;
+    "$DIALOG_ESC")
+      exit_default "cancelled.";;
+    *)
+    return 0;;
+  esac
+
+}
+
+exit_default() {
+
+  clear
+  if [ -z "$1" ]; then
+    echo "$0 exited."
+  else
+    echo "$0 $1."
+  fi
+  exit 0
+
+}
+
+writelog(){
+
+  echo "$(date '+%Y-%m-%d %H:%M:%S :: ')" "$1" >> "${LOGFILE}"
+
+}
+
+setconf() {
+
+  FILE="$1"
+  PARAM="$2"
+  VAL="$3"
+  SPACING=1
+  if [ -z "${FILE}" ] || [ -z "${PARAM}" ] || [ -z "${VAL}" ] ; then
+    return 1
+  fi
+  if [ -f "${FILE}" ] ; then
+    if grep -q "^${PARAM}" "${FILE}"; then
+      if [ ${SPACING} != 1 ]; then
+        sed -i "s#^${PARAM}.*#${PARAM} = ${VAL}#" "${FILE}"
+      else
+        sed -i "s#^${PARAM}.*#${PARAM}=${VAL}#" "${FILE}"
+      fi
+    else
+      if [ ${SPACING} != 1 ]; then
+        echo "${PARAM} = ${VAL}" >>"${FILE}"
+      else
+        echo "${PARAM}=${VAL}" >>"${FILE}"
+      fi
+    fi
+  else
+    if [ ${SPACING} != 1 ]; then
+      echo "${PARAM} = ${VAL}" >"${FILE}"
+    else
+      echo "${PARAM}=${VAL}" >"${FILE}"
+    fi
+  fi
+  return 0
+
+}
+
+randpw(){
+
+  < /dev/urandom tr -dc A-Za-z0-9 | head -c"${1:-16}";echo;
+
+}
+
+setup_done() {
+
+  local FINISH_MSG="\
+(Scroll this dialog with the 'j' and 'k' keys)
+
+grommunio Setup has successfully completed.
+
+You can now login to grommunio admin-web UI at https://${FQDN}:8443 with
+
+  Username: admin
+  Password: ${ADMIN_PASS}
+
+If you have created a Full CA Certificate during the process, you can download and install it from
+
+  https://${FQDN}:8443/rootCA.crt
+
+During the process, grommunio Setup has created an installation log which you may copy to a secure location or delete if not required anymore at
+
+  "${LOGFILE}"
+  Warning: The file contains sensitive information such as passwords!
+
+If using grommunio commercially, consider purchasing a subscription which provides support.
+
+Enjoy grommunio!"
+
+  dialog --no-mouse --colors --backtitle "grommunio Setup completed" --title "Finish" --clear --ok-label "Quit" --msgbox "${FINISH_MSG}" 0 0
+  exit 0
+
+}
+
+progress() {
+
+  echo "$1" | dialog --backtitle "grommunio Setup in progress" --title "Configuring" --gauge "   grommunio Setup is preparing the system..." 6 50
+
+}
+
+failonme(){
+
+  return "$1"
+
+}
+
+distlevel() {
+
+  echo "15.4"
+
+}

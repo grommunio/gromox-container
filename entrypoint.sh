@@ -16,6 +16,8 @@ if ! test -e "$LOGFILE"; then
 	true >"$LOGFILE"
 	chmod 0600 "$LOGFILE"
 fi
+# shellcheck source=common/helpers
+. "${DATADIR}/common/helpers"
 # shellcheck source=common/dialogs
 . "${DATADIR}/common/install-option"
 TMPF=$(mktemp /tmp/grommunio-setup.XXXXXXXX)
@@ -155,11 +157,37 @@ EOF
 
 
 echo "{ \"mailWebAddress\": \"https://${FQDN}/web\", \"rspamdWebAddress\": \"https://${FQDN}:8443/antispam/\" }" | jq > /tmp/config.json
+MYSQL_HOST="localhost"
+MYSQL_USER="grommunio"
+MYSQL_PASS=Lu3s3WmFxXghtLwJnuqN
+MYSQL_DB="grommunio"
+
+CHAT_ADMIN_PASS=grommunio
+FILES_ADMIN_PASS=grommunio
+ADMIN_PASS=grommunio
+
+    if [ -n "${MYSQL_HOST}" ] && [ -n "${MYSQL_USER}" ] && [ -n "${MYSQL_PASS}" ] && [ -n "${MYSQL_DB}" ]; then
+      echo "drop database if exists ${MYSQL_DB}; create database ${MYSQL_DB}; grant all on ${MYSQL_DB}.* to '${MYSQL_USER}'@'${MYSQL_HOST}' identified by '${MYSQL_PASS}';" | mysql >/dev/null 2>&1
+    else
+      failonme 1
+    fi
 
 if [[ $INSTALLVALUE == *"chat"* ]] ; then
   systemctl stop grommunio-chat
-  chmod +x /home/scripts/chat.sh
-  . /home/scripts/chat.sh
+  CHAT_MYSQL_HOST="localhost"
+  CHAT_MYSQL_USER="grochat"
+  CHAT_MYSQL_PASS=grommunio
+  CHAT_MYSQL_DB="grochat"
+  CHAT_CONFIG="/etc/grommunio-chat/config.json"
+
+  if [ "${CHAT_MYSQL_HOST}" == "localhost" ] ; then
+    echo "drop database if exists ${CHAT_MYSQL_DB}; \
+          create database ${CHAT_MYSQL_DB}; \
+          grant all on ${CHAT_MYSQL_DB}.* to '${CHAT_MYSQL_USER}'@'${CHAT_MYSQL_HOST}' identified by '${CHAT_MYSQL_PASS}';" | mysql >/dev/null 2>&1
+  else
+    echo "drop database if exists ${CHAT_MYSQL_DB}; \
+          create database ${CHAT_MYSQL_DB};" | mysql -h"${CHAT_MYSQL_HOST}" -u"${CHAT_MYSQL_USER}" -p"${CHAT_MYSQL_PASS}" "${CHAT_MYSQL_DB}" >/dev/null 2>&1
+  fi
   CHAT_DB_CON="${CHAT_MYSQL_USER}:${CHAT_MYSQL_PASS}@tcp\(${CHAT_MYSQL_HOST}:3306\)\/${CHAT_MYSQL_DB}?charset=utf8mb4,utf8\&readTimeout=30s\&writeTimeout=30s"
   sed -i 's#^.*"DataSource":.*#        "DataSource": "'${CHAT_DB_CON}'",#g' "${CHAT_CONFIG}"
   sed -i 's#^.*"DriverName": "postgres".*#        "DriverName": "mysql",#g' "${CHAT_CONFIG}"
@@ -170,7 +198,7 @@ if [[ $INSTALLVALUE == *"chat"* ]] ; then
   chmod 644 ${CHAT_CONFIG}
   systemctl enable grommunio-chat
   systemctl restart grommunio-chat
-  dialog_chat_adminpass
+
   # wait for the grommunio-chat unix socket, sometimes a second restart required for bind (db population)
   if ! [ -e "/var/tmp/grommunio-chat_local.socket" ] ; then
     systemctl restart grommunio-chat
@@ -228,11 +256,13 @@ echo "create database grommunio; grant all on grommunio.* to 'grommunio'@'localh
 echo "# Do not delete this file unless you know what you do!" > /etc/grommunio-common/setup_done
 
 chmod +x /home/scripts/mysql.sh
-. /home/scripts/mysql.sh
+sh /home/scripts/mysql.sh
 
+cp -f /home/config/mysql_adaptor.cfg /etc/gromox/mysql_adaptor.cfg
 setconf /etc/gromox/mysql_adaptor.cfg mysql_username "${MYSQL_USER}"
 setconf /etc/gromox/mysql_adaptor.cfg mysql_password "${MYSQL_PASS}"
 setconf /etc/gromox/mysql_adaptor.cfg mysql_dbname "${MYSQL_DB}"
+MYSQL_INSTALL_TYPE=1
 if [ "$MYSQL_INSTALL_TYPE" = 1 ]; then
 setconf /etc/gromox/mysql_adaptor.cfg schema_upgrade "host:${FQDN}"
 fi
@@ -279,7 +309,43 @@ cp /home/config/mailbox/virtual-mailbox-domain.cf /etc/postfix/grommunio-virtual
 cp /home/config/mailbox/virtual-mailbox-alias-maps.cf /etc/postfix/grommunio-virtual-mailbox-alias-maps.cf 
 
 cp /home/config/mailbox/virtual-mailbox-maps.cf /etc/postfix/grommunio-virtual-mailbox-maps.cf 
-sh /home/scripts/postconf.sh
+postconf -e \
+  myhostname="${FQDN}" \
+  virtual_mailbox_domains="mysql:/etc/postfix/grommunio-virtual-mailbox-domains.cf" \
+  virtual_mailbox_maps="mysql:/etc/postfix/grommunio-virtual-mailbox-maps.cf" \
+  virtual_alias_maps="mysql:/etc/postfix/grommunio-virtual-mailbox-alias-maps.cf" \
+  unverified_recipient_reject_code=550 \
+  virtual_transport="smtp:[::1]:24" \
+  relayhost="${RELAYHOST}" \
+  inet_interfaces=all \
+  smtpd_helo_restrictions=permit_mynetworks,permit_sasl_authenticated,reject_invalid_hostname,reject_non_fqdn_hostname \
+  smtpd_sender_restrictions=reject_non_fqdn_sender,permit_sasl_authenticated,permit_mynetworks \
+  smtpd_recipient_restrictions=permit_sasl_authenticated,permit_mynetworks,reject_unknown_recipient_domain,reject_non_fqdn_hostname,reject_non_fqdn_sender,reject_non_fqdn_recipient,reject_unauth_destination,reject_unauth_pipelining \
+  smtpd_data_restrictions=reject_unauth_pipelining \
+  smtpd_tls_security_level=may \
+  smtpd_tls_auth_only=no \
+  smtpd_tls_cert_file="${SSL_BUNDLE_T}" \
+  smtpd_tls_key_file="${SSL_KEY_T}" \
+  smtpd_tls_received_header=yes \
+  smtpd_tls_session_cache_timeout=3600s \
+  smtpd_use_tls=yes \
+  tls_random_source=dev:/dev/urandom \
+  smtpd_sasl_auth_enable=yes \
+  broken_sasl_auth_clients=yes \
+  smtpd_sasl_security_options=noanonymous \
+  smtpd_sasl_local_domain=\
+  smtpd_milters=inet:localhost:11332 \
+  milter_default_action=accept \
+  smtp_tls_security_level=may \
+  smtp_use_tls=yes \
+  milter_protocol=6
+postconf -M tlsmgr/unix="tlsmgr unix - - n 1000? 1 tlsmgr"
+postconf -M submission/inet="submission inet n - n - - smtpd"
+postconf -P submission/inet/syslog_name="postfix/submission"
+postconf -P submission/inet/smtpd_tls_security_level=encrypt
+postconf -P submission/inet/smtpd_sasl_auth_enable=yes
+postconf -P submission/inet/smtpd_relay_restrictions=permit_sasl_authenticated,reject
+postconf -P submission/inet/milter_macro_daemon_name=ORIGINATING
 
 systemctl enable postfix.service >>"${LOGFILE}" 2>&1
 systemctl restart postfix.service >>"${LOGFILE}" 2>&1
@@ -287,8 +353,19 @@ systemctl restart postfix.service >>"${LOGFILE}" 2>&1
 systemctl enable grommunio-fetchmail.timer >>"${LOGFILE}" 2>&1
 systemctl start grommunio-fetchmail.timer >>"${LOGFILE}" 2>&1
 
-chmod +x /home/scripts/firewall.sh
-sh /home/scripts/firewall.sh
+{
+  firewall-cmd --add-service=https --zone=public --permanent
+  firewall-cmd --add-port=25/tcp --zone=public --permanent
+  firewall-cmd --add-port=80/tcp --zone=public --permanent
+  firewall-cmd --add-port=110/tcp --zone=public --permanent
+  firewall-cmd --add-port=143/tcp --zone=public --permanent
+  firewall-cmd --add-port=587/tcp --zone=public --permanent
+  firewall-cmd --add-port=993/tcp --zone=public --permanent
+  firewall-cmd --add-port=995/tcp --zone=public --permanent
+  firewall-cmd --add-port=8080/tcp --zone=public --permanent
+  firewall-cmd --add-port=8443/tcp --zone=public --permanent
+  firewall-cmd --reload
+} >>"${LOGFILE}" 2>&1
 
 systemctl restart redis@grommunio.service nginx.service php-fpm.service gromox-delivery.service \
   gromox-event.service gromox-http.service gromox-imap.service gromox-midb.service \
@@ -297,13 +374,48 @@ systemctl restart redis@grommunio.service nginx.service php-fpm.service gromox-d
 
 if [[ $INSTALLVALUE == *"files"* ]] ; then
 
-  chmod +x /home/scripts/files.sh
-. /home/scripts/files.sh
+FILES_MYSQL_HOST="localhost"
+  FILES_MYSQL_USER="grofiles"
+  FILES_MYSQL_PASS=grommunio
+  FILES_MYSQL_DB="grofiles"
+  if [ "${FILES_MYSQL_HOST}" == "localhost" ] ; then
+    echo "drop database if exists ${FILES_MYSQL_DB}; \
+          create database ${FILES_MYSQL_DB}; \
+          grant all on ${FILES_MYSQL_DB}.* to '${FILES_MYSQL_USER}'@'${FILES_MYSQL_HOST}' identified by '${FILES_MYSQL_PASS}';" | mysql >/dev/null 2>&1
+  else
+    echo "drop database if exists ${FILES_MYSQL_DB}; \
+          create database ${FILES_MYSQL_DB};" | mysql -h"${FILES_MYSQL_HOST}" -u"${FILES_MYSQL_USER}" -p"${FILES_MYSQL_PASS}" "${FILES_MYSQL_DB}" >/dev/null 2>&1
+  fi
 
 cp /home/config/config.php /usr/share/grommunio-files/config/config.php 
 
-chmod +x /home/scripts/pushd.sh
-sh /home/scripts/pushd.sh
+ pushd /usr/share/grommunio-files
+    rm -rf data/admin >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n maintenance:install --database=mysql --database-name=${FILES_MYSQL_DB} --database-user=${FILES_MYSQL_USER} --database-pass=${FILES_MYSQL_PASS} --admin-user=admin --admin-pass="${FILES_ADMIN_PASS}" --data-dir=/var/lib/grommunio-files/data >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set trusted_domains 1 --value="${FQDN}" >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set trusted_domains 2 --value="${DOMAIN}" >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set trusted_domains 3 --value="mail.${DOMAIN}" >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n app:enable user_external >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set user_backends 0 arguments 0 --value="https://${FQDN}/dav" >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set user_backends 0 class --value='\OCA\UserExternal\BasicAuth' >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n app:enable onlyoffice >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set integrity.check.disabled --type boolean --value true >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n theming:config name 'grommunio Files' >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n theming:config logo /usr/share/grommunio-files/logo.png >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n theming:config logoheader /usr/share/grommunio-files/logo.png >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n theming:config favicon /usr/share/grommunio-files/favicon.svg >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n theming:config background /usr/share/grommunio-files/background.jpg >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n theming:config disable-user-theming true >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n theming:config slogan 'filesync & sharing' >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n theming:config url 'https://grommunio.com' >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n theming:config color '#0072B0' >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set mail_from_address --value='admin' >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set mail_smtpmode --value='sendmail' >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set mail_sendmailmode --value='smtp' >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set mail_domain --value="${DOMAIN}" >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set mail_smtphost --value='localhost' >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n config:system:set mail_smtpport --value='25' >>"${LOGFILE}" 2>&1
+  popd || return
 
   systemctl enable grommunio-files-cron.service >>"${LOGFILE}" 2>&1
   systemctl enable grommunio-files-cron.timer >>"${LOGFILE}" 2>&1
@@ -315,8 +427,18 @@ sh /home/scripts/pushd.sh
 fi
 
 if [[ $INSTALLVALUE == *"office"* ]] ; then
-chmod +x /home/scripts/office.sh
-. /home/scripts/office.sh
+OFFICE_MYSQL_HOST="localhost"
+  OFFICE_MYSQL_USER="groffice"
+  OFFICE_MYSQL_PASS=grommunio
+  OFFICE_MYSQL_DB="groffice"
+  if [ "${OFFICE_MYSQL_HOST}" == "localhost" ] ; then
+    echo "drop database if exists ${OFFICE_MYSQL_DB}; \
+          create database ${OFFICE_MYSQL_DB}; \
+          grant all on ${OFFICE_MYSQL_DB}.* to '${OFFICE_MYSQL_USER}'@'${OFFICE_MYSQL_HOST}' identified by '${OFFICE_MYSQL_PASS}';" | mysql >/dev/null 2>&1
+  else
+    echo "drop database if exists ${OFFICE_MYSQL_DB}; \
+          create database ${OFFICE_MYSQL_DB};" | mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" >/dev/null 2>&1
+  fi
 
   sed -i -e "/^CREATE DATABASE/d" -e "/^USE/d" /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
   mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" < /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
@@ -345,8 +467,19 @@ fi
 
 if [[ $INSTALLVALUE == *"archive"* ]] ; then
 
-chmod +x /home/scripts/archive.sh
-. /home/scripts/archive.sh
+ARCHIVE_MYSQL_HOST="localhost"
+  ARCHIVE_MYSQL_USER="groarchive"
+  ARCHIVE_MYSQL_PASS=grommunio
+  ARCHIVE_MYSQL_DB="groarchive"
+
+  if [ "${ARCHIVE_MYSQL_HOST}" == "localhost" ] ; then
+    echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
+          create database ${ARCHIVE_MYSQL_DB}; \
+          grant all on ${ARCHIVE_MYSQL_DB}.* to '${ARCHIVE_MYSQL_USER}'@'${ARCHIVE_MYSQL_HOST}' identified by '${ARCHIVE_MYSQL_PASS}';" | mysql >/dev/null 2>&1
+  else
+    echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
+          create database ${ARCHIVE_MYSQL_DB};" | mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" >/dev/null 2>&1
+  fi
 
   mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" < /usr/share/grommunio-archive/db-mysql.sql
 

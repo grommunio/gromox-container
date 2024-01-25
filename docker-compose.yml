@@ -33,8 +33,9 @@ services:
       mynet:
         ipv4_address: 17.18.0.3
     ports:
-      - "22"  # SSH
-      - "8443" # Grommunio Admin
+      - "2222:22"  # SSH
+      - "8443:8443" # Grommunio Admin
+      - "443:443" # Grommunio Web
     tty: true
     stdin_open: true
     environment:
