@@ -16,6 +16,8 @@ services:
     networks:
       mynet:
         ipv4_address: 17.18.0.2  # Specify the fixed IP address you want
+        ipv6_address: "2001:db8:1::2"
+
     restart: always  # Set the restart policy to "always"
     
   open-suse-sysbox:
@@ -32,6 +34,8 @@ services:
     networks:
       mynet:
         ipv4_address: 17.18.0.3
+        ipv6_address: "2001:db8:1::3"
+
     ports:
       - "2222:22"  # SSH
       - "8443:8443" # Grommunio Admin
@@ -43,10 +47,13 @@ services:
 networks:
   mynet:
     driver: bridge
+    enable_ipv6: true
     ipam:
       config:
         -  subnet: 17.18.0.0/24
            gateway: 17.18.0.1 
+        - subnet: "2001:db8:1::/64"
+          gateway: "2001:db8:1::1"  # IPv6 gateway
 
 volumes:
   mysql_data:

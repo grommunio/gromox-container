@@ -1,0 +1,13 @@
+[Unit]
+Description=Run DB Setup Script Once after Systemd is Started.
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/scripts/db.sh
+RemainAfterExit=true
+ExecStartPre=/bin/bash -c 'test -e /tmp/db_script_executed || exit 0'
+ExecStartPost=/bin/touch /tmp/db_script_executed
+
+[Install]
+WantedBy=multi-user.target
