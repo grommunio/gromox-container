@@ -1,23 +1,121 @@
 version: '3'
 services:
 
-  mysql:
-    image: mysql:8
-    container_name: mysql_container
+  gromox-db:
+    image: mariadb:10
+    container_name: gromox-db
     environment:
-      MYSQL_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
-      MYSQL_DATABASE: grommunio
-      MYSQL_USER: grommunio
-      MYSQL_PASSWORD: Lu3s3WmFxXghtLwJnuqN
+      MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
+      MARIADB_DATABASE: grommunio
+      MARIADB_USER: grommunio
+      MARIADB_PASSWORD: Lu3s3WmFxXghtLwJnuqN
     ports:
       - "3306:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - gromox_mysql_data:/var/lib/mysql
+    restart: on-failure
+    healthcheck:
+      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
+      interval: 30s
+      timeout: 10s
+      retries: 5
     networks:
       mynet:
-        ipv4_address: 17.18.0.2  # Specify the fixed IP address you want
-        ipv6_address: "2001:db8:1::2"
+        aliases:
+          - gromox-db
+
+  chat-db:
+    image: mariadb:10
+    container_name: chat-db
+    environment:
+      MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
+      MARIADB_DATABASE: grochat
+      MARIADB_USER: grochat
+      MARIADB_PASSWORD: grommunio
+    ports:
+      - "3306:3306"
+    volumes:
+      - chat_mysql_data:/var/lib/mysql
+    restart: on-failure
+    healthcheck:
+      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      mynet:
+        aliases:
+          - chat-db
     
+  files-db:
+    image: mariadb:10
+    container_name: files-db
+    environment:
+      MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
+      MARIADB_DATABASE: grofiles
+      MARIADB_USER: grofiles
+      MARIADB_PASSWORD: grommunio
+    ports:
+      - "3306:3306"
+    volumes:
+      - files_mysql_data:/var/lib/mysql
+    restart: on-failure
+    healthcheck:
+      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      mynet:
+        aliases:
+          - files-db
+
+  office-db:
+    image: mariadb:10
+    container_name: office-db
+    environment:
+      MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
+      MARIADB_DATABASE: groffice
+      MARIADB_USER: groffice
+      MARIADB_PASSWORD: grommunio
+    ports:
+      - "3306:3306"
+    volumes:
+      - office_mysql_data:/var/lib/mysql
+    restart: on-failure
+    healthcheck:
+      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      mynet:
+        aliases:
+          - office-db
+
+  archive-db:
+    image: mariadb:10
+    container_name: archive-db
+    environment:
+      MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
+      MARIADB_DATABASE: groarchive
+      MARIADB_USER: groarchive
+      MARIADB_PASSWORD: grommunio
+    ports:
+      - "3306:3306"
+    volumes:
+      - archive_mysql_data:/var/lib/mysql
+    restart: on-failure
+    healthcheck:
+      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      mynet:
+        aliases:
+          - archive-db
+
   open-suse-sysbox:
     build:
       context: .
@@ -29,32 +127,37 @@ services:
       - SYS_RESOURCE
     volumes:
       - opensuse-data:/data
-    networks:
-      mynet:
-        ipv4_address: 17.18.0.3
-        ipv6_address: "2001:db8:1::3"
-
     ports:
       - "2222:22"  # SSH
       - "8443:8443" # Grommunio Admin
       - "443:443" # Grommunio Web
     tty: true
     stdin_open: true
-    environment:
-      - container=docker
+    env_file:
+      - var.env
+    depends_on:
+      gromox-db:
+        condition: service_healthy
+      chat-db:
+        condition: service_healthy
+      files-db:
+        condition: service_healthy
+      office-db:
+        condition: service_healthy
+      archive-db:
+        condition: service_healthy
+
 networks:
   mynet:
     driver: bridge
     enable_ipv6: true
-    ipam:
-      config:
-        -  subnet: 17.18.0.0/24
-           gateway: 17.18.0.1 
-        - subnet: "2001:db8:1::/64"
-          gateway: "2001:db8:1::1"  # IPv6 gateway
 
 volumes:
-  mysql_data:
+  gromox_mysql_data:
+  chat_mysql_data:
+  files_mysql_data:
+  office_mysql_data:
+  archive_mysql_data:
   opensuse-data:
     driver: local
     driver_opts:
