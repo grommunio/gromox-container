@@ -152,7 +152,9 @@ FILES_ADMIN_PASS=grommunio
 ADMIN_PASS=grommunio
 
     if [ -n "${MYSQL_HOST}" ] && [ -n "${MYSQL_USER}" ] && [ -n "${MYSQL_PASS}" ] && [ -n "${MYSQL_DB}" ]; then
-      echo "drop database if exists ${MYSQL_DB}; create database ${MYSQL_DB}; grant all on ${MYSQL_DB}.* to '${MYSQL_USER}'@'${MYSQL_HOST}' identified by '${MYSQL_PASS}';" | mysql >/dev/null 2>&1
+      echo "drop database if exists ${MYSQL_DB}; create database ${MYSQL_DB}; \
+      create user '${MYSQL_USER}'@'${MYSQL_HOST}' identified by '${MYSQL_PASS}'; \
+      grant all on ${MYSQL_DB}.* to '${MYSQL_USER}'@'${MYSQL_HOST}' identified by '${MYSQL_PASS}';" | mysql >/dev/null 2>&1
     else
       failonme 1
     fi
@@ -169,6 +171,7 @@ if [[ $INSTALLVALUE == *"chat"* ]] ; then
   if [ "${CHAT_MYSQL_HOST}" == "localhost" ] ; then
     echo "drop database if exists ${CHAT_MYSQL_DB}; \
           create database ${CHAT_MYSQL_DB}; \
+      	  create user '${CHAT_MYSQL_USER}'@'${CHAT_MYSQL_HOST}' identified by '${CHAT_MYSQL_PASS}'; \
           grant all on ${CHAT_MYSQL_DB}.* to '${CHAT_MYSQL_USER}'@'${CHAT_MYSQL_HOST}' identified by '${CHAT_MYSQL_PASS}';" | mysql >/dev/null 2>&1
   else
     echo "drop database if exists ${CHAT_MYSQL_DB}; \
@@ -238,7 +241,7 @@ setconf /etc/gromox/smtp.cfg listen_port 24
 cp /etc/pam.d/smtp /etc/pam.d/smtp.save
 cp /home/config/smtp /etc/pam.d/smtp
 
-echo "create database grommunio; grant all on grommunio.* to 'grommunio'@'localhost' identified by 'grommunio';" | mysql
+#echo "create database grommunio; grant all on grommunio.* to 'grommunio'@'localhost' identified by '${MYSQL_PASS}';" | mysql
 echo "# Do not delete this file unless you know what you do!" > /etc/grommunio-common/setup_done
 
 chmod +x /home/scripts/mysql.sh
@@ -253,7 +256,7 @@ if [ "$MYSQL_INSTALL_TYPE" = 1 ]; then
 setconf /etc/gromox/mysql_adaptor.cfg schema_upgrade "host:${FQDN}"
 fi
 
-cp -f /etc/gromox/mysql_adaptor.cfg /etc/gromox/adaptor.cfg >>"${LOGFILE}" 2>&1
+#cp -f /etc/gromox/mysql_adaptor.cfg /etc/gromox/adaptor.cfg >>"${LOGFILE}" 2>&1
 
 
 cp /home/config/autodiscover.ini /etc/gromox/autodiscover.ini 
@@ -367,6 +370,7 @@ FILES_MYSQL_HOST="localhost"
   if [ "${FILES_MYSQL_HOST}" == "localhost" ] ; then
     echo "drop database if exists ${FILES_MYSQL_DB}; \
           create database ${FILES_MYSQL_DB}; \
+      	  create user '${FILES_MYSQL_USER}'@'${FILES_MYSQL_HOST}' identified by '${FILES_MYSQL_PASS}'; \
           grant all on ${FILES_MYSQL_DB}.* to '${FILES_MYSQL_USER}'@'${FILES_MYSQL_HOST}' identified by '${FILES_MYSQL_PASS}';" | mysql >/dev/null 2>&1
   else
     echo "drop database if exists ${FILES_MYSQL_DB}; \
@@ -422,6 +426,7 @@ OFFICE_MYSQL_HOST="localhost"
   if [ "${OFFICE_MYSQL_HOST}" == "localhost" ] ; then
     echo "drop database if exists ${OFFICE_MYSQL_DB}; \
           create database ${OFFICE_MYSQL_DB}; \
+          create user '${OFFICE_MYSQL_USER}'@'${OFFICE_MYSQL_HOST}' identified by '${OFFICE_MYSQL_PASS}'; \
           grant all on ${OFFICE_MYSQL_DB}.* to '${OFFICE_MYSQL_USER}'@'${OFFICE_MYSQL_HOST}' identified by '${OFFICE_MYSQL_PASS}';" | mysql >/dev/null 2>&1
   else
     echo "drop database if exists ${OFFICE_MYSQL_DB}; \
@@ -464,6 +469,7 @@ ARCHIVE_MYSQL_HOST="localhost"
   if [ "${ARCHIVE_MYSQL_HOST}" == "localhost" ] ; then
     echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
           create database ${ARCHIVE_MYSQL_DB}; \
+          create user '${ARCHIVE_MYSQL_USER}'@'${ARCHIVE_MYSQL_HOST}' identified by '${ARCHIVE_MYSQL_PASS}'; \
           grant all on ${ARCHIVE_MYSQL_DB}.* to '${ARCHIVE_MYSQL_USER}'@'${ARCHIVE_MYSQL_HOST}' identified by '${ARCHIVE_MYSQL_PASS}';" | mysql >/dev/null 2>&1
   else
     echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
