@@ -9,8 +9,6 @@ services:
       MARIADB_DATABASE: grommunio
       MARIADB_USER: grommunio
       MARIADB_PASSWORD: Lu3s3WmFxXghtLwJnuqN
-    ports:
-      - "3306:3306"
     volumes:
       - gromox_mysql_data:/var/lib/mysql
     restart: on-failure
@@ -32,8 +30,6 @@ services:
       MARIADB_DATABASE: grochat
       MARIADB_USER: grochat
       MARIADB_PASSWORD: grommunio
-    ports:
-      - "3306:3306"
     volumes:
       - chat_mysql_data:/var/lib/mysql
     restart: on-failure
@@ -55,8 +51,6 @@ services:
       MARIADB_DATABASE: grofiles
       MARIADB_USER: grofiles
       MARIADB_PASSWORD: grommunio
-    ports:
-      - "3306:3306"
     volumes:
       - files_mysql_data:/var/lib/mysql
     restart: on-failure
@@ -78,8 +72,6 @@ services:
       MARIADB_DATABASE: groffice
       MARIADB_USER: groffice
       MARIADB_PASSWORD: grommunio
-    ports:
-      - "3306:3306"
     volumes:
       - office_mysql_data:/var/lib/mysql
     restart: on-failure
@@ -101,8 +93,6 @@ services:
       MARIADB_DATABASE: groarchive
       MARIADB_USER: groarchive
       MARIADB_PASSWORD: grommunio
-    ports:
-      - "3306:3306"
     volumes:
       - archive_mysql_data:/var/lib/mysql
     restart: on-failure
@@ -133,6 +123,10 @@ services:
       - "443:443" # Grommunio Web
     tty: true
     stdin_open: true
+    networks:
+      mynet:
+        aliases:
+          - open-suse-sysbox
     env_file:
       - var.env
     depends_on:
