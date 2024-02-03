@@ -16,6 +16,8 @@
 
 FROM opensuse/leap:15.5
 
+ARG GROMMUNIO_REPO=openSUSE_Leap_15.5
+
 #
 # Systemd installation
 #
@@ -30,9 +32,16 @@ RUN zypper -n install \
         sudo       \
         systemd && \
 
-    zypper -n install docker openssh-server vim mysql &&       \
+	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
+	  rpm --import gr.key && \
+	  zypper --non-interactive --quiet ar -C https://download.grommunio.com/community/${GROMMUNIO_REPO} grommunio && \
+	  zypper --gpg-auto-import-keys ref && \
+	  zypper -n refresh grommunio && \
+
+    zypper -n install docker openssh-server vim mysql gromox &&       \
     systemctl enable sshd docker &&                                  \
         
+
     # Unmask services
     systemctl unmask                                                  \
         systemd-remount-fs.service                                    \

@@ -6,7 +6,7 @@ HAS_TABLES=$(mysql -u ${MYSQL_USER} -h ${MYSQL_HOST} -p"${MYSQL_PASS}" -D ${MYSQ
 if [[ $HAS_TABLES =~ "false" ]]; then
 	echo 'Gromox DB is not populated, populating it...' >>"${LOGFILE}" 2>&1
 	gromox-dbop -C >>"${LOGFILE}" 2>&1
-elif [[ $CLEAR_DBS eq 1 ]]; then
+elif [[ $CLEAR_DBS -eq 1 ]]; then
 	echo 'Creating new gromox DB...' >>"${LOGFILE}" 2>&1
 	echo "${MYSQL_ROOT_PASS}" > /home/gromox_root_pass 2>&1
       echo "drop database if exists ${MYSQL_DB}; \
