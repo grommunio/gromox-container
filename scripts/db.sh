@@ -15,12 +15,14 @@ if [[ $HAS_TABLES =~ "false" ]]; then
 	echo 'Gromox DB is not populated, populating it...' >>"$LOGFILE" 2>&1
 
 	gromox-dbop -C >>"$LOGFILE" 2>&1
-elif [[ $CLEAR_DBS -eq 1 ]]; then
+elif [[ $CLEAR_DBS = true ]]; then
+echo "here now"
 	echo 'Creating new gromox DB...' >>"$LOGFILE" 2>&1
 	echo "${MYSQL_ROOT_PASS}" > /home/gromox_root_pass 2>&1
       echo "drop database if exists ${MYSQL_DB}; \
-      	    create user '${MYSQL_USER}'@'${MYSQL_HOST}' identified by '${MYSQL_PASS}'; \
-	    create database ${MYSQL_DB}; grant all on ${MYSQL_DB}.* to '${MYSQL_USER}'@'${MYSQL_HOST}' identified by '${MYSQL_PASS}';" | mysql -h "${MYSQL_HOST}" -u root -p$(cat /home/gromox_root_pass) >>"$LOGFILE" 2>&1 
+	drop user if exists ${MYSQL_USER}; \
+	create user '${MYSQL_USER}'@'%' identified by '${MYSQL_PASS}'; \
+	    create database ${MYSQL_DB}; grant all on ${MYSQL_DB}.* to '${MYSQL_USER}'@'%' identified by '${MYSQL_PASS}';" | mysql -h "${MYSQL_HOST}" -u root -p$(cat /home/gromox_root_pass) >>"$LOGFILE" 2>&1 
 
 	gromox-dbop -C >>"$LOGFILE" 2>&1
 else
