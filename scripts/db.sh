@@ -5,6 +5,14 @@ HAS_TABLES=$(mysql -u ${MYSQL_USER} -h ${MYSQL_HOST} -p"${MYSQL_PASS}" -D ${MYSQ
 
 if [[ $HAS_TABLES =~ "false" ]]; then
 	echo 'Gromox DB is not populated, populating it...' >>"${LOGFILE}" 2>&1
+	
+	#Configure gromox to speak to the DB
+	touch /etc/gromox/mysql_adaptor.cfg
+	echo 'mysql_username="${MYSQL_USER}"' >> /etc/gromox/mysql_adaptor.cfg
+	echo 'mysql_password="${MYSQL_PASS}"' >> /etc/gromox/mysql_adaptor.cfg
+	echo 'mysql_dbname="${MYSQL_DB}"' >> /etc/gromox/mysql_adaptor.cfg
+	echo 'mysql_host="${MYSQL_HOST}"' >> /etc/gromox/mysql_adaptor.cfg
+
 	gromox-dbop -C >>"${LOGFILE}" 2>&1
 elif [[ $CLEAR_DBS -eq 1 ]]; then
 	echo 'Creating new gromox DB...' >>"${LOGFILE}" 2>&1
