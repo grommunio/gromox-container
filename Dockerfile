@@ -57,7 +57,7 @@ RUN chmod +x /home/scripts/db.sh
 COPY scripts/db.service /etc/systemd/system/db.service
 COPY entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
-RUN sh /home/entrypoint.sh
+#RUN sh /home/entrypoint.sh
 
 #RUN yes | sh /home/entrypoint.sh
 # Make use of stopsignal (instead of sigterm) to stop systemd containers.

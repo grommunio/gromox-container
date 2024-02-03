@@ -39,41 +39,8 @@ memory_check()
 
 memory_check
 
-unset MYSQL_DB
-unset MYSQL_HOST
-unset MYSQL_USER
-unset MYSQL_PASS
-unset CHAT_MYSQL_DB
-unset CHAT_MYSQL_HOST
-unset CHAT_MYSQL_USER
-unset CHAT_MYSQL_PASS
-unset CHAT_ADMIN_PASS
-unset FILES_MYSQL_DB
-unset FILES_MYSQL_HOST
-unset FILES_MYSQL_USER
-unset FILES_MYSQL_PASS
-unset FILES_ADMIN_PASS
-unset ARCHIVE_MYSQL_DB
-unset ARCHIVE_MYSQL_HOST
-unset ARCHIVE_MYSQL_USER
-unset ARCHIVE_MYSQL_PASS
-unset OFFICE_MYSQL_DB
-unset OFFICE_MYSQL_HOST
-unset OFFICE_MYSQL_USER
-unset OFFICE_MYSQL_PASS
-unset ADMIN_PASS
-unset FQDN
-unset DOMAIN
-unset X500
-unset SSL_BUNDLE
-unset SSL_KEY
-unset REPO_USER
-unset REPO_PASS
-unset REPO_PATH
 
 # Set repository credentials directly
-REPO_USER="your_repo_user"
-REPO_PASS="your_repo_password"
 # shellcheck source=common/repo
 INSTALLVALUE="core, chat, files, office, archive"
 PACKAGES="gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
@@ -82,14 +49,6 @@ PACKAGES="gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
 PACKAGES="$PACKAGES $FT_PACKAGES"
 . "${DATADIR}/common/repo"
 setup_repo
-
-ORIGFQDN=localhost
-FQDN=localhost
-
-
-ORIGDOMAIN=localhost
-DOMAIN=localhost
-RELAYHOST=localhost
 
 X500="i$(printf "%llx" "$(date +%s)")"
 #Choose Install type, 0 for self signed, 2 to provide certificate and 3 for letsencrypt.
