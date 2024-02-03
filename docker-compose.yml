@@ -145,6 +145,13 @@ networks:
   mynet:
     driver: bridge
     enable_ipv6: true
+    ipam:
+      config:
+        -  subnet: 17.18.0.0/24
+           gateway: 17.18.0.1
+        - subnet: "2001:db8:1::/64"
+          gateway: "2001:db8:1::1"  # IPv6 gateway
+
 
 volumes:
   gromox_mysql_data:

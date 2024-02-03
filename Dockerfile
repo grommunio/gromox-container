@@ -30,7 +30,7 @@ RUN zypper -n install \
         sudo       \
         systemd && \
 
-    zypper -n install docker openssh-server &&       \
+    zypper -n install docker openssh-server vim mysql &&       \
     systemctl enable sshd docker &&                                  \
         
     # Unmask services
@@ -55,7 +55,7 @@ COPY common /home/common
 COPY config /home/config
 RUN chmod +x /home/scripts/db.sh
 COPY scripts/db.service /etc/systemd/system/db.service
-COPY scripts/entry.service /etc/systemd/system/entry.service
+#COPY scripts/entry.service /etc/systemd/system/entry.service
 COPY entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
 #RUN sh /home/entrypoint.sh
