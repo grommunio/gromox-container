@@ -11,7 +11,6 @@ else
 	DATADIR="${DATADIR%/*}"
 	DATADIR="$(readlink -f "${DATADIR}")"
 fi
-LOGFILE="/var/log/grommunio-setup.log"
 if ! test -e "$LOGFILE"; then
 	true >"$LOGFILE"
 	chmod 0600 "$LOGFILE"
@@ -101,41 +100,14 @@ EOF
 
 
 echo "{ \"mailWebAddress\": \"https://${FQDN}/web\", \"rspamdWebAddress\": \"https://${FQDN}:8443/antispam/\" }" | jq > /tmp/config.json
-MYSQL_HOST="localhost"
-MYSQL_USER="grommunio"
-MYSQL_PASS=Lu3s3WmFxXghtLwJnuqN
-MYSQL_DB="grommunio"
-
-CHAT_ADMIN_PASS=grommunio
-FILES_ADMIN_PASS=grommunio
-ADMIN_PASS=grommunio
-
-    if [ -n "${MYSQL_HOST}" ] && [ -n "${MYSQL_USER}" ] && [ -n "${MYSQL_PASS}" ] && [ -n "${MYSQL_DB}" ]; then
-      echo "drop database if exists ${MYSQL_DB}; create database ${MYSQL_DB}; \
-      create user '${MYSQL_USER}'@'${MYSQL_HOST}' identified by '${MYSQL_PASS}'; \
-      grant all on ${MYSQL_DB}.* to '${MYSQL_USER}'@'${MYSQL_HOST}' identified by '${MYSQL_PASS}';" | mysql >/dev/null 2>&1
-    else
-      failonme 1
-    fi
 
 if [[ $INSTALLVALUE == *"chat"* ]] ; then
   zypper --non-interactive install -y grommunio-chat 2>&1 | tee -a "$LOGFILE"
   systemctl stop grommunio-chat
-  CHAT_MYSQL_HOST="localhost"
-  CHAT_MYSQL_USER="grochat"
-  CHAT_MYSQL_PASS=grommunio
-  CHAT_MYSQL_DB="grochat"
-  CHAT_CONFIG="/etc/grommunio-chat/config.json"
 
-  if [ "${CHAT_MYSQL_HOST}" == "localhost" ] ; then
-    echo "drop database if exists ${CHAT_MYSQL_DB}; \
-          create database ${CHAT_MYSQL_DB}; \
-      	  create user '${CHAT_MYSQL_USER}'@'${CHAT_MYSQL_HOST}' identified by '${CHAT_MYSQL_PASS}'; \
-          grant all on ${CHAT_MYSQL_DB}.* to '${CHAT_MYSQL_USER}'@'${CHAT_MYSQL_HOST}' identified by '${CHAT_MYSQL_PASS}';" | mysql >/dev/null 2>&1
-  else
     echo "drop database if exists ${CHAT_MYSQL_DB}; \
           create database ${CHAT_MYSQL_DB};" | mysql -h"${CHAT_MYSQL_HOST}" -u"${CHAT_MYSQL_USER}" -p"${CHAT_MYSQL_PASS}" "${CHAT_MYSQL_DB}" >/dev/null 2>&1
-  fi
+
   CHAT_DB_CON="${CHAT_MYSQL_USER}:${CHAT_MYSQL_PASS}@tcp\(${CHAT_MYSQL_HOST}:3306\)\/${CHAT_MYSQL_DB}?charset=utf8mb4,utf8\&readTimeout=30s\&writeTimeout=30s"
   sed -i 's#^.*"DataSource":.*#        "DataSource": "'${CHAT_DB_CON}'",#g' "${CHAT_CONFIG}"
   sed -i 's#^.*"DriverName": "postgres".*#        "DriverName": "mysql",#g' "${CHAT_CONFIG}"
@@ -171,14 +143,13 @@ cp /home/config/chat.yaml /etc/grommunio-admin-api/conf.d/chat.yaml
 
 fi
 
-zypper install -y mariadb vim php-fpm cyrus-sasl-saslauthd cyrus-sasl-plain postfix postfix-mysql >>"${LOGFILE}" 2>&1
+zypper install -y vim php-fpm cyrus-sasl-saslauthd cyrus-sasl-plain postfix postfix-mysql >>"${LOGFILE}" 2>&1
 
 systemctl enable redis@grommunio.service gromox-delivery.service gromox-event.service \
   gromox-http.service gromox-imap.service gromox-midb.service gromox-pop3.service \
   gromox-delivery-queue.service gromox-timer.service gromox-zcore.service grommunio-antispam.service \
   php-fpm.service nginx.service grommunio-admin-api.service saslauthd.service mariadb >>"${LOGFILE}" 2>&1
 
-systemctl start mariadb >>"${LOGFILE}" 2>&1
 if [ -d /etc/php8 ]; then
   if [ -e "/etc/php8/fpm/php-fpm.conf.default" ] ; then
     mv /etc/php8/fpm/php-fpm.conf.default /etc/php8/fpm/php-fpm.conf
@@ -200,26 +171,10 @@ setconf /etc/gromox/smtp.cfg listen_port 24
 cp /etc/pam.d/smtp /etc/pam.d/smtp.save
 cp /home/config/smtp /etc/pam.d/smtp
 
-#echo "create database grommunio; grant all on grommunio.* to 'grommunio'@'localhost' identified by '${MYSQL_PASS}';" | mysql
 echo "# Do not delete this file unless you know what you do!" > /etc/grommunio-common/setup_done
 
-chmod +x /home/scripts/mysql.sh
-sh /home/scripts/mysql.sh
-
-cp -f /home/config/mysql_adaptor.cfg /etc/gromox/mysql_adaptor.cfg
-setconf /etc/gromox/mysql_adaptor.cfg mysql_username "${MYSQL_USER}"
-setconf /etc/gromox/mysql_adaptor.cfg mysql_password "${MYSQL_PASS}"
-setconf /etc/gromox/mysql_adaptor.cfg mysql_dbname "${MYSQL_DB}"
-MYSQL_INSTALL_TYPE=1
-if [ "$MYSQL_INSTALL_TYPE" = 1 ]; then
-setconf /etc/gromox/mysql_adaptor.cfg schema_upgrade "host:${FQDN}"
-fi
-
-#cp -f /etc/gromox/mysql_adaptor.cfg /etc/gromox/adaptor.cfg >>"${LOGFILE}" 2>&1
-
-
 cp /home/config/autodiscover.ini /etc/gromox/autodiscover.ini 
-gromox-dbop -C >>"${LOGFILE}" 2>&1
+#gromox-dbop -C >>"${LOGFILE}" 2>&1
 
 cp /home/config/database.yaml /etc/grommunio-admin-api/conf.d/database.yaml
 
@@ -322,19 +277,8 @@ systemctl restart redis@grommunio.service nginx.service php-fpm.service gromox-d
 
 if [[ $INSTALLVALUE == *"files"* ]] ; then
 
-FILES_MYSQL_HOST="localhost"
-  FILES_MYSQL_USER="grofiles"
-  FILES_MYSQL_PASS=grommunio
-  FILES_MYSQL_DB="grofiles"
-  if [ "${FILES_MYSQL_HOST}" == "localhost" ] ; then
-    echo "drop database if exists ${FILES_MYSQL_DB}; \
-          create database ${FILES_MYSQL_DB}; \
-      	  create user '${FILES_MYSQL_USER}'@'${FILES_MYSQL_HOST}' identified by '${FILES_MYSQL_PASS}'; \
-          grant all on ${FILES_MYSQL_DB}.* to '${FILES_MYSQL_USER}'@'${FILES_MYSQL_HOST}' identified by '${FILES_MYSQL_PASS}';" | mysql >/dev/null 2>&1
-  else
     echo "drop database if exists ${FILES_MYSQL_DB}; \
           create database ${FILES_MYSQL_DB};" | mysql -h"${FILES_MYSQL_HOST}" -u"${FILES_MYSQL_USER}" -p"${FILES_MYSQL_PASS}" "${FILES_MYSQL_DB}" >/dev/null 2>&1
-  fi
 
 cp /home/config/config.php /usr/share/grommunio-files/config/config.php 
 
@@ -378,19 +322,8 @@ fi
 if [[ $INSTALLVALUE == *"office"* ]] ; then
 
 zypper --non-interactive install -y grommunio-office rabbitmq-server 2>&1 | tee -a "$LOGFILE"
-OFFICE_MYSQL_HOST="localhost"
-  OFFICE_MYSQL_USER="groffice"
-  OFFICE_MYSQL_PASS=grommunio
-  OFFICE_MYSQL_DB="groffice"
-  if [ "${OFFICE_MYSQL_HOST}" == "localhost" ] ; then
-    echo "drop database if exists ${OFFICE_MYSQL_DB}; \
-          create database ${OFFICE_MYSQL_DB}; \
-          create user '${OFFICE_MYSQL_USER}'@'${OFFICE_MYSQL_HOST}' identified by '${OFFICE_MYSQL_PASS}'; \
-          grant all on ${OFFICE_MYSQL_DB}.* to '${OFFICE_MYSQL_USER}'@'${OFFICE_MYSQL_HOST}' identified by '${OFFICE_MYSQL_PASS}';" | mysql >/dev/null 2>&1
-  else
     echo "drop database if exists ${OFFICE_MYSQL_DB}; \
           create database ${OFFICE_MYSQL_DB};" | mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" >/dev/null 2>&1
-  fi
 
   sed -i -e "/^CREATE DATABASE/d" -e "/^USE/d" /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
   mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" < /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
@@ -420,20 +353,9 @@ fi
 if [[ $INSTALLVALUE == *"archive"* ]] ; then
 
 zypper --non-interactive install -y grommunio--archive sphinx 2>&1 | tee -a "$LOGFILE"
-ARCHIVE_MYSQL_HOST="localhost"
-  ARCHIVE_MYSQL_USER="groarchive"
-  ARCHIVE_MYSQL_PASS=grommunio
-  ARCHIVE_MYSQL_DB="groarchive"
 
-  if [ "${ARCHIVE_MYSQL_HOST}" == "localhost" ] ; then
-    echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
-          create database ${ARCHIVE_MYSQL_DB}; \
-          create user '${ARCHIVE_MYSQL_USER}'@'${ARCHIVE_MYSQL_HOST}' identified by '${ARCHIVE_MYSQL_PASS}'; \
-          grant all on ${ARCHIVE_MYSQL_DB}.* to '${ARCHIVE_MYSQL_USER}'@'${ARCHIVE_MYSQL_HOST}' identified by '${ARCHIVE_MYSQL_PASS}';" | mysql >/dev/null 2>&1
-  else
     echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
           create database ${ARCHIVE_MYSQL_DB};" | mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" >/dev/null 2>&1
-  fi
 
   mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" < /usr/share/grommunio-archive/db-mysql.sql
 
