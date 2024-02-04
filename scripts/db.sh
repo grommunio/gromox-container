@@ -13,10 +13,8 @@ echo "mysql_host=$MYSQL_HOST" >> /etc/gromox/mysql_adaptor.cfg
 
 if [[ $HAS_TABLES =~ "false" ]]; then
 	echo 'Gromox DB is not populated, populating it...' >>"$LOGFILE" 2>&1
-
 	gromox-dbop -C >>"$LOGFILE" 2>&1
 elif [[ $CLEAR_DBS = true ]]; then
-echo "here now"
 	echo 'Creating new gromox DB...' >>"$LOGFILE" 2>&1
 	echo "${MYSQL_ROOT_PASS}" > /home/gromox_root_pass 2>&1
       echo "drop database if exists ${MYSQL_DB}; \

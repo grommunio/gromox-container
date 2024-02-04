@@ -5,6 +5,7 @@ After=network.target
 [Service]
 Type=oneshot
 ExecStart=/home/scripts/db.sh
+EnvironmentFile=/home/var.env
 RemainAfterExit=true
 ExecStartPre=/bin/bash -c 'test -e /tmp/db_script_executed || exit 0'
 ExecStartPost=/bin/touch /tmp/db_script_executed

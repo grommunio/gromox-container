@@ -5,6 +5,7 @@ Requires=db.service
 [Service]
 Type=oneshot
 ExecStart=/home/scripts/entrypoint.sh
+EnvironmentFile=/home/var.env
 RemainAfterExit=true
 ExecStartPre=/bin/bash -c 'test -e /tmp/entry_script_executed || exit 0'
 ExecStartPost=/bin/touch /tmp/entry_script_executed

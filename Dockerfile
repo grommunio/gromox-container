@@ -59,19 +59,20 @@ RUN zypper -n install \
     groupadd 'wheel' &&                                        \
     useradd -m -s /bin/bash -G wheel admin &&                        \                         
     echo "admin:admin" | chpasswd
+
 COPY scripts /home/scripts
 COPY common /home/common
 COPY config /home/config
+COPY var.env /home/var.env
 RUN chmod +x /home/scripts/db.sh
 COPY scripts/db.service /etc/systemd/system/db.service
-#COPY scripts/entry.service /etc/systemd/system/entry.service
+COPY scripts/entry.service /etc/systemd/system/entry.service
 COPY entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
 #RUN sh /home/entrypoint.sh
 
 #RUN yes | sh /home/entrypoint.sh
 # Make use of stopsignal (instead of sigterm) to stop systemd containers.
-
 
 # Set systemd as entrypoint.
 ENTRYPOINT [ "/usr/lib/systemd/systemd", "--log-level=err" ]
