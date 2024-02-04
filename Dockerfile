@@ -21,7 +21,7 @@ ARG GROMMUNIO_REPO=openSUSE_Leap_15.5
 #
 # Systemd installation
 #
-RUN zypper -n install \
+RUN zypper -n install -y \
         iptables   \
         iproute2    \
         kmod       \
@@ -30,18 +30,21 @@ RUN zypper -n install \
         patterns-base-base \ 
         procps  \
         sudo       \
-        systemd && \
+        systemd 
 
-	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
+RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 	  rpm --import gr.key && \
 	  zypper --non-interactive --quiet ar -C https://download.grommunio.com/community/${GROMMUNIO_REPO} grommunio && \
 	  zypper --gpg-auto-import-keys ref && \
-	  zypper -n refresh grommunio && \
+	  zypper -n refresh grommunio
 
-    zypper -n install docker openssh-server vim mysql gromox &&       \
-    systemctl enable sshd docker &&                                  \
-        
+RUN    zypper --non-interactive install -y -l docker openssh-server vim mysql mariadb-client gromox        \
+	gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
+	  grommunio-common grommunio-web grommunio-sync grommunio-dav \
+	  grommunio-chat grommunio-office rabbitmq-server grommunio-archive sphinx \
+	  firewalld cyrus-sasl-saslauthd cyrus-sasl-plain postfix postfix-mysql jq 
 
+RUN    systemctl enable sshd docker &&                                  \
     # Unmask services
     systemctl unmask                                                  \
         systemd-remount-fs.service                                    \
@@ -64,12 +67,17 @@ COPY scripts /home/scripts
 COPY common /home/common
 COPY config /home/config
 COPY var.env /home/var.env
+
 RUN chmod +x /home/scripts/db.sh
+
 COPY scripts/db.service /etc/systemd/system/db.service
 COPY scripts/entry.service /etc/systemd/system/entry.service
+
 COPY entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
-#RUN sh /home/entrypoint.sh
+
+RUN chmod +x /home/scripts/enable.sh
+RUN sh /home/scripts/enable.sh
 
 #RUN yes | sh /home/entrypoint.sh
 # Make use of stopsignal (instead of sigterm) to stop systemd containers.
