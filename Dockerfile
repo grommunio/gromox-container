@@ -38,30 +38,30 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 	  zypper --gpg-auto-import-keys ref && \
 	  zypper -n refresh grommunio
 
-RUN    zypper --non-interactive install -y -l docker openssh-server vim mysql mariadb-client gromox        \
+RUN    zypper --non-interactive install -y vim mysql        \
 	gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
-	  grommunio-common grommunio-web grommunio-sync grommunio-dav \
-	  grommunio-chat grommunio-office rabbitmq-server grommunio-archive sphinx \
-	  firewalld cyrus-sasl-saslauthd cyrus-sasl-plain postfix postfix-mysql jq 
+	  grommunio-common grommunio-web grommunio-sync grommunio-dav postfix postfix-mysql \  
+	  grommunio-chat firewalld cyrus-sasl-saslauthd cyrus-sasl-plain jq 
 
-RUN    systemctl enable sshd docker &&                                  \
+	#grommunio-archive sphinx  docker openssh-server grommunio-office rabbitmq-server \ 
+
+#RUN    systemctl enable sshd docker
     # Unmask services
-    systemctl unmask                                                  \
+RUN    systemctl unmask                                                  \
         systemd-remount-fs.service                                    \
         dev-hugepages.mount                                           \
         sys-fs-fuse-connections.mount                                 \
         systemd-logind.service                                        \
         getty.target                                                  \
-        console-getty.service &&                                      \
+        console-getty.service 
     # Prevent journald from reading kernel messages from /dev/kmsg
-    echo "ReadKMsg=no" >> /etc/systemd/journald.conf &&               \
-                                                                      
-                                                                      
+
+RUN    echo "ReadKMsg=no" >> /etc/systemd/journald.conf                                                             
+                                                                
     # Create default user if needed
     # useradd --create-home --shell /bin/bash your_username -G wheel && echo "your_username:your_password" | chpasswd
-    groupadd 'wheel' &&                                        \
-    useradd -m -s /bin/bash -G wheel admin &&                        \                         
-    echo "admin:admin" | chpasswd
+RUN    groupadd 'wheel' &&                         \
+    useradd -m -s /bin/bash -G wheel admin && echo "admin:admin" | chpasswd
 
 COPY scripts /home/scripts
 COPY common /home/common

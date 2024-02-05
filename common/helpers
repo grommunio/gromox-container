@@ -40,6 +40,24 @@ writelog(){
 
 }
 
+generate_admin_db_conf(){
+  FILENAME=$1
+
+  declare -A INPUTS=(
+   [user]=$MARIADB_USER
+   [pass]=$MARIADB_PASSWORD
+   [database]=$MARIADB_DATABASE
+   [host]=$DB_HOST
+  )
+
+  echo "DB:" > ${FILENAME}
+
+  for elem in "${!INPUTS[@]}"
+  do
+   echo "  ${elem}: '${INPUTS[${elem}]}'" >> ${FILENAME}
+  done
+}
+
 setconf() {
 
   FILE="$1"
@@ -105,7 +123,7 @@ If using grommunio commercially, consider purchasing a subscription which provid
 
 Enjoy grommunio!"
 
-  dialog --no-mouse --colors --backtitle "grommunio Setup completed" --title "Finish" --clear --ok-label "Quit" --msgbox "${FINISH_MSG}" 0 0
+#  dialog --no-mouse --colors --backtitle "grommunio Setup completed" --title "Finish" --clear --ok-label "Quit" --msgbox "${FINISH_MSG}" 0 0
   exit 0
 
 }

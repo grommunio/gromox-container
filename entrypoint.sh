@@ -39,7 +39,8 @@ memory_check
 
 # Set repository credentials directly
 # shellcheck source=common/repo
-INSTALLVALUE="core, chat, files, office, archive"
+#INSTALLVALUE="core, chat, files, office, archive"
+INSTALLVALUE="core"
 
 X500="i$(printf "%llx" "$(date +%s)")"
 #Choose Install type, 0 for self signed, 2 to provide certificate and 3 for letsencrypt.
@@ -90,6 +91,8 @@ location /config.json {
 }
 EOF
 
+# Generate AAPI DB access
+generate_admin_db_conf "/etc/grommunio-admin-api/conf.d/database.yaml"
 
 echo "got to beginning chat" >>"${LOGFILE}" 2>&1
 echo "{ \"mailWebAddress\": \"https://${FQDN}/web\", \"rspamdWebAddress\": \"https://${FQDN}:8443/antispam/\" }" | jq > /tmp/config.json
@@ -383,7 +386,6 @@ if [[ $INSTALLVALUE == *"archive"* ]] ; then
 fi
 mv /tmp/config.json /etc/grommunio-admin-common/config.json
 systemctl restart grommunio-admin-api.service
-#systmectl enable db.service
 setup_done
 
 exit 0
