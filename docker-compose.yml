@@ -2,7 +2,7 @@ version: '3'
 services:
 
   mysql:
-    image: mysql:latest
+    image: mysql:8
     container_name: mysql_container
     environment:
       MYSQL_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
@@ -17,8 +17,6 @@ services:
       mynet:
         ipv4_address: 17.18.0.2  # Specify the fixed IP address you want
         ipv6_address: "2001:db8:1::2"
-
-    restart: always  # Set the restart policy to "always"
     
   open-suse-sysbox:
     build:

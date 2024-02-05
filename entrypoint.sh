@@ -488,8 +488,8 @@ ARCHIVE_MYSQL_HOST="localhost"
   setconf /etc/grommunio-archive/grommunio-archive.conf listen_addr 0.0.0.0 0
 
   php /etc/grommunio-archive/sphinx.conf.dist > /etc/sphinx/sphinx.conf
-
-  s
+  sed -i -e "s/MYSQL_HOSTNAME/${ARCHIVE_MYSQL_HOST}/" -e "s/MYSQL_DATABASE/${ARCHIVE_MYSQL_DB}/" -e "s/MYSQL_PASSWORD/${ARCHIVE_MYSQL_PASS}/" -e "s/MYSQL_USERNAME/${ARCHIVE_MYSQL_USER}/" /etc/sphinx/sphinx.conf
+  chown groarchive:sphinx /etc/sphinx/sphinx.conf
   chmod 644 /etc/sphinx/sphinx.conf
   chown groarchive:sphinx /var/lib/grommunio-archive/sphinx/ -R
   chmod 775 /var/lib/grommunio-archive/sphinx/
@@ -502,14 +502,11 @@ ARCHIVE_MYSQL_HOST="localhost"
 
   jq '.archiveWebAddress |= "https://'${FQDN}'/archive"' /tmp/config.json > /tmp/config-new.json
   mv /tmp/config-new.json /tmp/config.json
-if [[ $INSTALLVALUE == *"meet"* ]] ; then
-zypper --non-interactive install -y grommunio-meet jitsi-jibri jitsi-jicofo jitsi-jigasi jitsi-videobridge jitsi-meet jitsi-meet-prosody-plugins jitsi-meet-branding-grommunio prosody 2>&1 | tee -a "$LOGFILE"
-else
-echo "Not Selected"
+
+fi
 mv /tmp/config.json /etc/grommunio-admin-common/config.json
 systemctl restart grommunio-admin-api.service
-systemctl enable db.service
-
+systmectl enable db.service
 setup_done
 
 exit 0
