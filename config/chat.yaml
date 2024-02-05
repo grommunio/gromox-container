@@ -1,9 +1,0 @@
-chat:
-  connection:
-    login_id: admin
-    password: 'grommunio'
-    url: localhost
-    basepath: /chat/api/v4
-    port: 443
-    scheme: https
-    verify: False
