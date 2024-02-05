@@ -34,13 +34,12 @@ memory_check()
 
 }
 
-echo "got to memory check" >>"${LOGFILE}" 2>&1
 memory_check
 
 # Set repository credentials directly
 # shellcheck source=common/repo
 #INSTALLVALUE="core, chat, files, office, archive"
-INSTALLVALUE="core"
+INSTALLVALUE="core, chat"
 
 X500="i$(printf "%llx" "$(date +%s)")"
 #Choose Install type, 0 for self signed, 2 to provide certificate and 3 for letsencrypt.
@@ -94,7 +93,6 @@ EOF
 # Generate AAPI DB access
 generate_admin_db_conf "/etc/grommunio-admin-api/conf.d/database.yaml"
 
-echo "got to beginning chat" >>"${LOGFILE}" 2>&1
 echo "{ \"mailWebAddress\": \"https://${FQDN}/web\", \"rspamdWebAddress\": \"https://${FQDN}:8443/antispam/\" }" | jq > /tmp/config.json
 
 if [[ $INSTALLVALUE == *"chat"* ]] ; then
@@ -167,7 +165,7 @@ cp /home/config/smtp /etc/pam.d/smtp
 
 echo "# Do not delete this file unless you know what you do!" > /etc/grommunio-common/setup_done
 
-cp /home/config/autodiscover.ini /etc/gromox/autodiscover.ini 
+#cp /home/config/autodiscover.ini /etc/gromox/autodiscover.ini 
 
 grommunio-admin passwd --password "${ADMIN_PASS}" >>"${LOGFILE}" 2>&1
 
