@@ -44,10 +44,10 @@ generate_admin_db_conf(){
   FILENAME=$1
 
   declare -A INPUTS=(
-   [user]=$MARIADB_USER
-   [pass]=$MARIADB_PASSWORD
-   [database]=$MARIADB_DATABASE
-   [host]=$DB_HOST
+   [user]=$MYSQL_USER
+   [pass]=$MYSQL_PASS
+   [database]=$MYSQL_DB
+   [host]=$MYSQL_HOST
   )
 
   echo "DB:" > ${FILENAME}

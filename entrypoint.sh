@@ -169,8 +169,6 @@ echo "# Do not delete this file unless you know what you do!" > /etc/grommunio-c
 
 cp /home/config/autodiscover.ini /etc/gromox/autodiscover.ini 
 
-cp /home/config/database.yaml /etc/grommunio-admin-api/conf.d/database.yaml
-
 grommunio-admin passwd --password "${ADMIN_PASS}" >>"${LOGFILE}" 2>&1
 
 rspamadm pw -p "${ADMIN_PASS}" | sed -e 's#^#password = "#' -e 's#$#";#' > /etc/grommunio-antispam/local.d/worker-controller.inc
