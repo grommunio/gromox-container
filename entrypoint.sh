@@ -126,9 +126,7 @@ if [[ $INSTALLVALUE == *"chat"* ]] ; then
   popd || return
 
   if [ "${SSL_INSTALL_TYPE}" = "0" ] || [ "${SSL_INSTALL_TYPE}" = "1" ] ; then
-
-cp /home/config/chat.yaml /etc/grommunio-admin-api/conf.d/chat.yaml
-
+	generate_admin_chat_conf "/etc/grommunio-admin-api/conf.d/chat.yaml"
   fi
 
   chmod 640 ${CHAT_CONFIG}

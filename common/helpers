@@ -58,6 +58,38 @@ generate_admin_db_conf(){
   done
 }
 
+#chat:
+#  connection:
+#    login_id: admin
+#    password: 'grommunio'
+#    url: localhost
+#    basepath: /chat/api/v4
+#    port: 443
+#    scheme: https
+#    verify: False
+
+generate_admin_chat_conf(){
+  FILENAME=$1
+
+  declare -A INPUTS=(
+   [url]=$CHAT_URL
+   [password]=$CHAT_ADMIN_PASS
+  )
+
+  echo "chat:" > ${FILENAME}
+  echo "  connection:" >> ${FILENAME}
+  echo "    login_id: admin" >> ${FILENAME}
+  echo "    basepath: /chat/api/v4" >> ${FILENAME}
+  echo "    port: 443" >> ${FILENAME}
+  echo "    scheme: https" >> ${FILENAME}
+  echo "    verify: False" >> ${FILENAME}
+
+  for elem in "${!INPUTS[@]}"
+  do
+   echo "    ${elem}: '${INPUTS[${elem}]}'" >> ${FILENAME}
+  done
+}
+
 setconf() {
 
   FILE="$1"
