@@ -58,16 +58,6 @@ generate_admin_db_conf(){
   done
 }
 
-#chat:
-#  connection:
-#    login_id: admin
-#    password: 'grommunio'
-#    url: localhost
-#    basepath: /chat/api/v4
-#    port: 443
-#    scheme: https
-#    verify: False
-
 generate_admin_chat_conf(){
   FILENAME=$1
 

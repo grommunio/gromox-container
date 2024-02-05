@@ -163,7 +163,27 @@ cp /home/config/smtp /etc/pam.d/smtp
 
 echo "# Do not delete this file unless you know what you do!" > /etc/grommunio-common/setup_done
 
-#cp /home/config/autodiscover.ini /etc/gromox/autodiscover.ini 
+# Set up autodiscover
+cp /home/config/autodiscover.ini /etc/gromox/autodiscover.ini 
+
+setconf /etc/gromox/autodiscover.ini host ${MYSQL_HOST} 
+setconf /etc/gromox/autodiscover.ini username ${MYSQL_USER}
+setconf /etc/gromox/autodiscover.ini password ${MYSQL_PASS}
+setconf /etc/gromox/autodiscover.ini dbname ${MYSQL_DB}
+
+setconf /etc/gromox/autodiscover.ini organization ${ORGANIZATION}
+#setconf /etc/gromox/autodiscover.ini hostname ${FQDN}
+setconf /etc/gromox/autodiscover.ini mapihttp 1
+
+setconf /etc/gromox/autodiscover.ini timezone ${TIMEZONE}
+setconf /etc/gromox/autodiscover.ini /var/lib/gromox/user ${HTTP_PROXY_USER}
+setconf /etc/gromox/autodiscover.ini /var/lib/gromox/domain ${HTTP_PROXY_DOMAIN}
+
+# Set up http.cfg
+setconf /etc/gromox/http.cfg listen_port 10080
+setconf /etc/gromox/http.cfg http_support_ssl true
+setconf /etc/gromox/http.cfg listen_ssl_port 10443
+setconf /etc/gromox/http.cfg host_id ${FQDN}
 
 grommunio-admin passwd --password "${ADMIN_PASS}" >>"${LOGFILE}" 2>&1
 
