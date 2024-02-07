@@ -1,5 +1,0 @@
-sync:
-  connection:
-    host: http://core:6379
-options:
-  antispamUrl: http://core:11334

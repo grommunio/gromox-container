@@ -1,0 +1,18 @@
+#!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2021 grommunio GmbH
+for i in $(cat ${INSTALL-VALUE}) ; do
+    if ! [ "$i" == "core" ] && ! [ "$1" == "meet" ] ; then
+      eval FT_${i^^}=true
+      FT_PACKAGES="$FT_PACKAGES grommunio-${i}"
+    fi
+    if [ "$i" == "office" ] ; then
+      FT_PACKAGES="$FT_PACKAGES rabbitmq-server"
+    fi
+    if [ "$i" == "archive" ] ; then
+      FT_PACKAGES="$FT_PACKAGES sphinx"
+    fi
+    if [ "$i" == "meet" ] ; then
+      FT_PACKAGES="$FT_PACKAGES jitsi-jibri jitsi-jicofo jitsi-jigasi jitsi-videobridge jitsi-meet jitsi-meet-prosody-plugins jitsi-meet-branding-grommunio prosody"
+    fi
+  done
