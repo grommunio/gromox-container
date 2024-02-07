@@ -40,6 +40,26 @@ writelog(){
 
 }
 
+
+generate_g_cf_files(){
+  FILENAME=$1
+
+  declare -A INPUTS=(
+   [user]=$MYSQL_USER
+   [password]=$MYSQL_PASS
+   [dbname]=$MYSQL_DB
+   [hosts]=$MYSQL_HOST
+   [query]=$2
+  )
+
+  : > ${FILENAME}
+
+  for elem in "${!INPUTS[@]}"
+  do
+   echo "${elem} = ${INPUTS[${elem}]}" >> ${FILENAME}
+  done
+}
+
 generate_admin_db_conf(){
   FILENAME=$1
 

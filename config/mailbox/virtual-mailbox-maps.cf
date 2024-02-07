@@ -1,5 +1,0 @@
-user = grommunio
-password = Lu3s3WmFxXghtLwJnuqN
-hosts = localhost
-dbname = grommunio
-query = SELECT 1 FROM users WHERE username='%s'
