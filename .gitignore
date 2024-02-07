@@ -2,3 +2,4 @@ archive
 note.md
 cert.key
 cert.pem
+scripts/db-old.sh

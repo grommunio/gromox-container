@@ -1,0 +1,81 @@
+#!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2021 grommunio GmbH
+
+SSL_BUNDLE_T="/etc/grommunio-common/ssl/server-bundle.pem"
+SSL_KEY_T="/etc/grommunio-common/ssl/server.key"
+
+selfcert()
+{
+
+  openssl req -x509 -new -nodes -out "${SSL_BUNDLE_T}" -keyout "${SSL_KEY_T}" \
+          -subj "/CN=${FQDN}" -addext "subjectAltName = DNS:${FQDN}, DNS:autodiscover.${DOMAIN}" >>"${LOGFILE}" 2>&1
+
+  cp -f "${SSL_BUNDLE_T}" "/etc/pki/trust/anchors/"
+  update-ca-certificates
+
+}
+
+fullca()
+{
+
+  export SSL_COUNTRY SSL_STATE SSL_LOCALITY SSL_ORG SSL_OU SSL_EMAIL SSL_PASS SSL_DAYS
+  export FQDN DOMAIN SSL_BUNDLE_T SSL_KEY_T
+  if ! "$DATADIR/common/fullca.sh" >>"${LOGFILE}" 2>&1; then
+    echo "Certificate generation was not successful. Check "${LOGFILE}"."
+    return 1
+  fi
+  return 0
+  cp -f "${SSL_BUNDLE_T}" "/etc/pki/trust/anchors/"
+  update-ca-certificates
+
+}
+
+owncert() {
+
+  if [ -z "${SSL_BUNDLE}" ] || [ -z "${SSL_KEY}" ] ; then
+    echo "TLS certificate and/or key not provided."
+    return 1
+  fi
+  cp -f "${SSL_BUNDLE}" "${SSL_BUNDLE_T}"
+  cp -f "${SSL_KEY}" "${SSL_KEY_T}"
+  cp -f "${SSL_BUNDLE_T}" "/etc/pki/trust/anchors/"
+  update-ca-certificates
+  return 0
+
+}
+
+letsencrypt() {
+
+  progress 0
+  zypper install -y python3-certbot python3-certbot-nginx nginx >>"${LOGFILE}" 2>&1
+  progress 60
+  {
+    firewall-cmd --add-port=80/tcp --zone=public --permanent
+    firewall-cmd --add-service=https --zone=public --permanent
+    firewall-cmd --reload
+  } >>"${LOGFILE}" 2>&1
+
+  [ -e "/etc/nginx/conf.d/grommunio.conf" ] && mv "/etc/nginx/conf.d/grommunio.conf" "/etc/nginx/conf.d/grommunio.conf.grommunio-setup"
+
+  systemctl stop nginx >>"${LOGFILE}" 2>&1
+  progress 75
+  certbot certonly -n --standalone --agree-tos \
+    --preferred-challenges http \
+    --cert-name="${FQDN}" \
+    -d "${SSL_DOMAINS}" \
+    -m "${SSL_EMAIL}" >>"${LOGFILE}" 2>&1
+
+  progress 95
+
+  [ -e "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" ] && mv "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" "/etc/nginx/conf.d/grommunio.conf"
+
+  cat "/etc/letsencrypt/live/${FQDN}/cert.pem" "/etc/letsencrypt/live/${FQDN}/fullchain.pem" > "${SSL_BUNDLE_T}"
+  cp -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" "${SSL_KEY_T}"
+
+  {
+    systemctl enable grommunio-certbot-renew.timer
+    systemctl start grommunio-certbot-renew.timer
+  } >>"${LOGFILE}" 2>&1
+
+}
