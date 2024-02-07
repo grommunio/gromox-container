@@ -96,7 +96,6 @@ generate_admin_db_conf "/etc/grommunio-admin-api/conf.d/database.yaml"
 echo "{ \"mailWebAddress\": \"https://${FQDN}/web\", \"rspamdWebAddress\": \"https://${FQDN}:8443/antispam/\" }" | jq > /tmp/config.json
 
 if [[ $INSTALLVALUE == *"chat"* ]] ; then
-#  zypper --non-interactive install -y grommunio-chat 2>&1 | tee -a "$LOGFILE"
   systemctl stop grommunio-chat
 
     echo "drop database if exists ${CHAT_MYSQL_DB}; \
@@ -219,7 +218,6 @@ generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-alias-maps.cf" "SELE
 generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-maps.cf" "SELECT 1 FROM users WHERE username='%s'"
 generate_g_cf_files "/etc/postfix/grommunio-bcc-forwards.cf" "SELECT destination FROM forwards WHERE username='%s' AND forward_type = 0"
 
-
 postconf -e \
   myhostname="${FQDN}" \
   virtual_mailbox_domains="mysql:/etc/postfix/grommunio-virtual-mailbox-domains.cf" \
@@ -331,7 +329,6 @@ fi
 
 if [[ $INSTALLVALUE == *"office"* ]] ; then
 
-#zypper --non-interactive install -y grommunio-office rabbitmq-server 2>&1 | tee -a "$LOGFILE"
     echo "drop database if exists ${OFFICE_MYSQL_DB}; \
           create database ${OFFICE_MYSQL_DB};" | mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" >/dev/null 2>&1
 
@@ -361,8 +358,6 @@ if [[ $INSTALLVALUE == *"office"* ]] ; then
 fi
 
 if [[ $INSTALLVALUE == *"archive"* ]] ; then
-
-#zypper --non-interactive install -y grommunio-archive sphinx 2>&1 | tee -a "$LOGFILE"
 
     echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
           create database ${ARCHIVE_MYSQL_DB};" | mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" >/dev/null 2>&1
