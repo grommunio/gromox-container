@@ -108,8 +108,8 @@ services:
 
   open-suse-sysbox:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ./
+      dockerfile: ./gromox-core/Dockerfile
     restart: unless-stopped
     runtime: sysbox-runc
     cap_add:
