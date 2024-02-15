@@ -84,11 +84,11 @@ fi
 [ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
 
 # Configure config.json of admin-web
-cat > /etc/grommunio-admin-common/nginx.d/web-config.conf <<EOF
-location /config.json {
-  alias /etc/grommunio-admin-common/config.json;
-}
-EOF
+#cat > /etc/grommunio-admin-common/nginx.d/web-config.conf <<EOF
+#location /config.json {
+#  alias /etc/grommunio-admin-common/config.json;
+#}
+#EOF
 
 
 #systemctl enable redis@grommunio.service gromox-delivery.service gromox-event.service \
@@ -134,11 +134,11 @@ if [[ $INSTALLVALUE == *"archive"* ]] ; then
   sed -e "s#MYHOSTNAME#${FQDN}#g" -e "s#MYSMTP#${DOMAIN}#g" -e "s/MYSQL_HOSTNAME/${ARCHIVE_MYSQL_HOST}/" -e "s/MYSQL_DATABASE/${ARCHIVE_MYSQL_DB}/" -e "s/MYSQL_PASSWORD/${ARCHIVE_MYSQL_PASS}/" -e "s/MYSQL_USERNAME/${ARCHIVE_MYSQL_USER}/" /etc/grommunio-archive/config-site.dist.php > /etc/grommunio-archive/config-site.php
 
   echo "/(.*)/   prepend X-Envelope-To: \$1" > /etc/postfix/grommunio-archiver-envelope.cf
-  postconf -e "smtpd_recipient_restrictions=permit_sasl_authenticated,permit_mynetworks,check_recipient_access pcre:/etc/postfix/grommunio-archiver-envelope.cf,reject_unknown_recipient_domain,reject_non_fqdn_hostname,reject_non_fqdn_sender,reject_non_fqdn_recipient,reject_unauth_destination,reject_unauth_pipelining"
+  postconf -e "smtpd_recipient_restrictions=permit_sasl_authenticated,permit_mynetworks,check_recipient_access pcre:/etc/postfix/grommunio-archiver-envelope.cf,reject_unknown_recipient_domain,reject_non_fqdn_hostname,reject_non_fqdn_sender,reject_non_fqdn_recipient,reject_unauth_destination,reject_unauth_pipelining" # set this up on gromox
 
-  postconf -e "always_bcc=archive@${FQDN}"
-  echo "archive@${FQDN} smtp:[127.0.0.1]:2693" > /etc/postfix/transport
-  postmap /etc/postfix/transport
+  postconf -e "always_bcc=archive@${FQDN}" # set this up on gromox
+  echo "archive@${FQDN} smtp:[127.0.0.1]:2693" > /etc/postfix/transport # set this up on gromox
+  postmap /etc/postfix/transport # set this up on gromox
 
   mv /etc/grommunio-archive/grommunio-archive.conf.dist /etc/grommunio-archive/grommunio-archive.conf
   setconf /etc/grommunio-archive/grommunio-archive.conf mysqluser "${ARCHIVE_MYSQL_USER}" 0
@@ -159,8 +159,8 @@ if [[ $INSTALLVALUE == *"archive"* ]] ; then
   systemctl enable searchd.service grommunio-archive-smtp.service grommunio-archive.service postfix.service >>"${LOGFILE}" 2>&1
   systemctl restart searchd.service grommunio-archive-smtp.service grommunio-archive.service postfix.service >>"${LOGFILE}" 2>&1
 
-  jq '.archiveWebAddress |= "https://'${FQDN}'/archive"' /tmp/config.json > /tmp/config-new.json
-  mv /tmp/config-new.json /tmp/config.json
+  #jq '.archiveWebAddress |= "https://'${FQDN}'/archive"' /tmp/config.json > /tmp/config-new.json
+  #mv /tmp/config-new.json /tmp/config.json
 
 fi
 #mv /tmp/config.json /etc/grommunio-admin-common/config.json

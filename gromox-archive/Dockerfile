@@ -38,8 +38,8 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 	  zypper --gpg-auto-import-keys ref && \
 	  zypper -n refresh grommunio
 
-RUN    zypper --non-interactive install -y vim mysql        \
-	grommunio-archive sphinx ginx jq firewalld cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common 
+RUN    zypper --non-interactive install -y vim         \
+	grommunio-archive sphinx nginx jq firewalld cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common 
 
 	#grommunio-archive sphinx  docker openssh-server grommunio-office rabbitmq-server \ 
 
