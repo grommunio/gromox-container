@@ -1,0 +1,22 @@
+#!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2021 grommunio GmbH
+
+setup_repo() {
+GROMMUNIO_REPO=openSUSE_Leap_15.5
+REPO_PATH="community"
+curl -Lsk "https://download.grommunio.com/RPM-GPG-KEY-grommunio" >/tmp/RPM-GPG-KEY-grommunio
+mkdir -p /etc/zypp/repos.d
+cat >/etc/zypp/repos.d/grommunio.repo <<EOF
+[grommunio]
+enabled=1
+autorefresh=1
+baseurl=https://download.grommunio.com/${REPO_PATH}/${GROMMUNIO_REPO}/?ssl_verify=no
+type=rpm-md
+EOF
+  rpm --import /tmp/RPM-GPG-KEY-grommunio 2>&1 | tee -a "$LOGFILE"
+  zypper --non-interactive refresh 2>&1 | tee -a "$LOGFILE"
+  zypper --non-interactive update 2>&1 | tee -a "$LOGFILE"
+  zypper --non-interactive install -y $PACKAGES 2>&1 | tee -a "$LOGFILE"
+  sleep 1
+}
