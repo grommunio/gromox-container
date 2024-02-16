@@ -357,45 +357,17 @@ if [[ $INSTALLVALUE == *"office"* ]] ; then
   popd || return
 fi
 
-if [[ $INSTALLVALUE == *"archive"* ]] ; then
-
-    echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
-          create database ${ARCHIVE_MYSQL_DB};" | mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" >/dev/null 2>&1
-
-  mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" < /usr/share/grommunio-archive/db-mysql.sql
-
-  sed -e "s#MYHOSTNAME#${FQDN}#g" -e "s#MYSMTP#${DOMAIN}#g" -e "s/MYSQL_HOSTNAME/${ARCHIVE_MYSQL_HOST}/" -e "s/MYSQL_DATABASE/${ARCHIVE_MYSQL_DB}/" -e "s/MYSQL_PASSWORD/${ARCHIVE_MYSQL_PASS}/" -e "s/MYSQL_USERNAME/${ARCHIVE_MYSQL_USER}/" /etc/grommunio-archive/config-site.dist.php > /etc/grommunio-archive/config-site.php
+if [[ $ENABLE_ARCHIVE = true ]] ; then
 
   echo "/(.*)/   prepend X-Envelope-To: \$1" > /etc/postfix/grommunio-archiver-envelope.cf
   postconf -e "smtpd_recipient_restrictions=permit_sasl_authenticated,permit_mynetworks,check_recipient_access pcre:/etc/postfix/grommunio-archiver-envelope.cf,reject_unknown_recipient_domain,reject_non_fqdn_hostname,reject_non_fqdn_sender,reject_non_fqdn_recipient,reject_unauth_destination,reject_unauth_pipelining"
 
   postconf -e "always_bcc=archive@${FQDN}"
-  echo "archive@${FQDN} smtp:[127.0.0.1]:2693" > /etc/postfix/transport
+  echo "archive@${FQDN} smtp:[gromox-archive]:2693" > /etc/postfix/transport
   postmap /etc/postfix/transport
 
-  mv /etc/grommunio-archive/grommunio-archive.conf.dist /etc/grommunio-archive/grommunio-archive.conf
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqluser "${ARCHIVE_MYSQL_USER}" 0
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqlpwd "${ARCHIVE_MYSQL_PASS}" 0
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqldb "${ARCHIVE_MYSQL_DB}" 0
-  setconf /etc/grommunio-archive/grommunio-archive.conf listen_addr 0.0.0.0 0
-
-  php /etc/grommunio-archive/sphinx.conf.dist > /etc/sphinx/sphinx.conf
-  sed -i -e "s/MYSQL_HOSTNAME/${ARCHIVE_MYSQL_HOST}/" -e "s/MYSQL_DATABASE/${ARCHIVE_MYSQL_DB}/" -e "s/MYSQL_PASSWORD/${ARCHIVE_MYSQL_PASS}/" -e "s/MYSQL_USERNAME/${ARCHIVE_MYSQL_USER}/" /etc/sphinx/sphinx.conf
-  chown groarchive:sphinx /etc/sphinx/sphinx.conf
-  chmod 644 /etc/sphinx/sphinx.conf
-  chown groarchive:sphinx /var/lib/grommunio-archive/sphinx/ -R
-  chmod 775 /var/lib/grommunio-archive/sphinx/
-  sudo -u groarchive indexer --all
-
-  < /dev/urandom head -c 56 > /etc/grommunio-archive/grommunio-archive.key
-
-  systemctl enable searchd.service grommunio-archive-smtp.service grommunio-archive.service postfix.service >>"${LOGFILE}" 2>&1
-  systemctl restart searchd.service grommunio-archive-smtp.service grommunio-archive.service postfix.service >>"${LOGFILE}" 2>&1
-
-  jq '.archiveWebAddress |= "https://'${FQDN}'/archive"' /tmp/config.json > /tmp/config-new.json
-  mv /tmp/config-new.json /tmp/config.json
-
 fi
+
 mv /tmp/config.json /etc/grommunio-admin-common/config.json
 systemctl restart grommunio-admin-api.service
 setup_done
