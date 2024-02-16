@@ -366,6 +366,24 @@ if [[ $ENABLE_ARCHIVE = true ]] ; then
   echo "archive@${FQDN} smtp:[gromox-archive]:2693" > /etc/postfix/transport
   postmap /etc/postfix/transport
 
+# configuration file /usr/share/grommunio-common/nginx/upstreams.d/grommunio-archive.conf:
+cat >  /usr/share/grommunio-common/nginx/upstreams.d/grommunio-archive.conf <<EOF
+upstream gromoxarchive {
+	server ${ARCHIVE_HOST}:443;
+}
+EOF
+
+# configuration file /usr/share/grommunio-common/nginx/locations.d/grommunio-archive.conf:
+cat > /usr/share/grommunio-common/nginx/locations.d/grommunio-archive.conf <<EOF
+location ~* ^/archive {
+	proxy_pass https://gromoxarchive;
+	proxy_request_buffering off;
+	proxy_buffering off;
+	error_log /var/log/nginx/nginx-archive-error.log;
+	access_log /var/log/nginx/nginx-archive-access.log;
+}
+EOF
+
 fi
 
 mv /tmp/config.json /etc/grommunio-admin-common/config.json
