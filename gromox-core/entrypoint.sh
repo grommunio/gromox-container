@@ -376,7 +376,7 @@ EOF
 # configuration file /usr/share/grommunio-common/nginx/locations.d/grommunio-archive.conf:
 cat > /usr/share/grommunio-common/nginx/locations.d/grommunio-archive.conf <<EOF
 location ~* ^/archive {
-	proxy_pass https://gromoxarchive;
+	proxy_pass http://gromoxarchive;
 	proxy_request_buffering off;
 	proxy_buffering off;
 	error_log /var/log/nginx/nginx-archive-error.log;
