@@ -369,13 +369,13 @@ if [[ $ENABLE_ARCHIVE = true ]] ; then
 # configuration file /usr/share/grommunio-common/nginx/upstreams.d/grommunio-archive.conf:
 cat >  /usr/share/grommunio-common/nginx/upstreams.d/grommunio-archive.conf <<EOF
 upstream gromoxarchive {
-	server ${ARCHIVE_HOST}:443;
+	server ${ARCHIVE_HOST};
 }
 EOF
 
 # configuration file /usr/share/grommunio-common/nginx/locations.d/grommunio-archive.conf:
 cat > /usr/share/grommunio-common/nginx/locations.d/grommunio-archive.conf <<EOF
-location ~* ^/archive {
+location /archive {
 	proxy_pass https://gromoxarchive;
 	proxy_request_buffering off;
 	proxy_buffering off;
