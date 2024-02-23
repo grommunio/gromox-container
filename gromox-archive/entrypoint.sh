@@ -171,6 +171,7 @@ if [[ $INSTALLVALUE == *"archive"* ]] ; then
 
 fi
 #mv /tmp/config.json /etc/grommunio-admin-common/config.json
+systemctl enable nginx >>"${LOGFILE}" 2>&1
 setup_done
 
 exit 0
