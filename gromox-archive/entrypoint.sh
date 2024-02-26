@@ -103,6 +103,18 @@ fi
 #for CFG in midb.cfg zcore.cfg exmdb_local.cfg exmdb_provider.cfg exchange_emsmdb.cfg exchange_nsp.cfg ; do
 #  setconf "/etc/gromox/${CFG}" x500_org_name "${X500}"
 #done
+writelog "Config stage: put php files into place"
+if [ -d /etc/php8 ]; then
+  if [ -e "/etc/php8/fpm/php-fpm.conf.default" ] ; then
+    mv /etc/php8/fpm/php-fpm.conf.default /etc/php8/fpm/php-fpm.conf
+  fi
+#  cp -f /usr/share/gromox/fpm-gromox.conf.sample /etc/php8/fpm/php-fpm.d/gromox.conf
+elif [ -d /etc/php7 ]; then
+  if [ -e "/etc/php7/fpm/php-fpm.conf.default" ] ; then
+    mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf
+  fi
+#  cp -f /usr/share/gromox/fpm-gromox.conf.sample /etc/php7/fpm/php-fpm.d/gromox.conf
+fi
 
 {
   firewall-cmd --add-service=https --zone=public --permanent
@@ -171,7 +183,8 @@ if [[ $INSTALLVALUE == *"archive"* ]] ; then
 
 fi
 #mv /tmp/config.json /etc/grommunio-admin-common/config.json
-systemctl enable nginx >>"${LOGFILE}" 2>&1
+systemctl enable nginx.service php-fpm.service >>"${LOGFILE}" 2>&1
+systemctl start nginx.service php-fpm.service >>"${LOGFILE}" 2>&1
 setup_done
 
 exit 0

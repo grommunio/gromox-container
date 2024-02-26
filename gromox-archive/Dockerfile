@@ -39,9 +39,7 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 	  zypper -n refresh grommunio
 
 RUN    zypper --non-interactive install -y vim mysql         \
-	grommunio-archive sphinx nginx jq firewalld cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common 
-
-	#grommunio-archive sphinx  docker openssh-server grommunio-office rabbitmq-server \ 
+       php8-mysql php8-cli php-fpm grommunio-archive sphinx nginx jq firewalld cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common 
 
     # Unmask services
 RUN    systemctl unmask                                                  \
