@@ -369,25 +369,65 @@ if [[ $ENABLE_ARCHIVE = true ]] ; then
 # configuration file /usr/share/grommunio-common/nginx/upstreams.d/grommunio-archive.conf:
 cat >  /usr/share/grommunio-common/nginx/upstreams.d/grommunio-archive.conf <<EOF
 upstream gromoxarchive {
-	server ${ARCHIVE_HOST};
+	server ${ARCHIVE_HOST}:443;
 }
 EOF
 
 # configuration file /usr/share/grommunio-common/nginx/locations.d/grommunio-archive.conf:
 cat > /usr/share/grommunio-common/nginx/locations.d/grommunio-archive.conf <<EOF
 location /archive {
-	proxy_pass http://gromoxarchive;
+	proxy_pass https://gromoxarchive/archive;
 	proxy_request_buffering off;
 	proxy_buffering off;
 	error_log /var/log/nginx/nginx-archive-error.log;
 	access_log /var/log/nginx/nginx-archive-access.log;
+}
+
+location ~* ^/archive/(qr|js|sso|index).php {
+	proxy_pass https://gromoxarchive;
+	proxy_request_buffering off;
+	proxy_buffering off;
+	error_log /var/log/nginx/nginx-archive-error.log;
+	access_log /var/log/nginx/nginx-archive-access.log;
+}
+
+location ~* ^/archive/(.+\.php)(/|$)$ {
+        rewrite /archive/search.php /archive/index.php?route=search/search&type=simple;
+        rewrite /archive/advanced.php /archive/index.php?route=search/search&type=advanced;
+        rewrite /archive/expert.php /archive/index.php?route=search/search&type=expert;
+        rewrite /archive/search-helper.php /archive/index.php?route=search/helper;
+        rewrite /archive/audit-helper.php /archive/index.php?route=audit/helper;
+        rewrite /archive/message.php /archive/index.php?route=message/view;
+        rewrite /archive/bulkrestore.php /archive/index.php?route=message/bulkrestore;
+        rewrite /archive/bulkremove.php /archive/index.php?route=message/bulkremove;
+        rewrite /archive/rejectremove.php /archive/index.php?route=message/rejectremove;
+        rewrite /archive/bulkpdf.php /archive/index.php?route=message/bulkpdf;
+        rewrite /archive/folders.php /archive/index.php?route=folder/list&;
+        rewrite /archive/settings.php /archive/index.php?route=user/settings;
+        rewrite /archive/login.php /archive/index.php?route=login/login;
+        rewrite /archive/logout.php /archive/index.php?route=login/logout;
+        rewrite /archive/google.php /archive/index.php?route=login/google;
+        rewrite /archive/domain.php /archive/index.php?route=domain/domain;
+        rewrite /archive/ldap.php /archive/index.php?route=ldap/list;
+        rewrite /archive/customer.php /archive/index.php?route=customer/list;
+        rewrite /archive/retention.php /archive/index.php?route=policy/retention;
+        rewrite /archive/archiving.php /archive/index.php?route=policy/archiving;
+        rewrite /archive/legalhold.php /archive/index.php?route=policy/legalhold;
+}
+
+location ~* /archive/view/javascript/piler.js$ {
+        rewrite /archive/view/javascript/piler.js /archive/js.php;
+}
+
+location ^~ /view {
+        rewrite ^/view/?(.*)$ /archive/view/$1 permanent;
 }
 EOF
 
 fi
 
 mv /tmp/config.json /etc/grommunio-admin-common/config.json
-systemctl restart grommunio-admin-api.service
+systemctl restart grommunio-admin-api.service nginx.service
 setup_done
 
 exit 0
