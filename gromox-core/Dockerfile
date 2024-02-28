@@ -45,7 +45,6 @@ RUN    zypper --non-interactive install -y vim mysql        \
 
 	#grommunio-archive sphinx  docker openssh-server grommunio-office rabbitmq-server \ 
 
-#RUN    systemctl enable sshd docker
     # Unmask services
 RUN    systemctl unmask                                                  \
         systemd-remount-fs.service                                    \
@@ -63,17 +62,17 @@ RUN    echo "ReadKMsg=no" >> /etc/systemd/journald.conf
 RUN    groupadd 'wheel' &&                         \
     useradd -m -s /bin/bash -G wheel admin && echo "admin:admin" | chpasswd
 
-COPY scripts /home/scripts
-COPY common /home/common
-COPY config /home/config
+COPY gromox-core/scripts /home/scripts
+COPY gromox-core/common /home/common
+COPY gromox-core/config /home/config
 COPY var.env /home/var.env
 
 RUN chmod +x /home/scripts/db.sh
 
-COPY scripts/db.service /etc/systemd/system/db.service
-COPY scripts/entry.service /etc/systemd/system/entry.service
+COPY gromox-core/scripts/db.service /etc/systemd/system/db.service
+COPY gromox-core/scripts/entry.service /etc/systemd/system/entry.service
 
-COPY entrypoint.sh /home/entrypoint.sh
+COPY gromox-core/entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
 
 RUN chmod +x /home/scripts/enable.sh
