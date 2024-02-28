@@ -420,7 +420,11 @@ location ~* /archive/view/javascript/piler.js$ {
 }
 
 location ^~ /view {
-        rewrite ^/view/?(.*)$ /archive/view/$1 permanent;
+	proxy_pass https://gromoxarchive;
+	proxy_request_buffering off;
+	proxy_buffering off;
+	error_log /var/log/nginx/nginx-archive-error.log;
+	access_log /var/log/nginx/nginx-archive-access.log;
 }
 EOF
 
