@@ -106,10 +106,10 @@ services:
         aliases:
           - archive-db
 
-  open-suse-sysbox:
+  gromox-core:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ./
+      dockerfile: ./gromox-core/Dockerfile
     restart: unless-stopped
     runtime: sysbox-runc
     cap_add:
@@ -126,7 +126,7 @@ services:
     networks:
       mynet:
         aliases:
-          - open-suse-sysbox
+          - gromox-core
     env_file:
       - var.env
     depends_on:
@@ -137,6 +137,35 @@ services:
       files-db:
         condition: service_healthy
       office-db:
+        condition: service_healthy
+      archive-db:
+        condition: service_healthy
+
+  gromox-archive:
+    build:
+      context: ./
+      dockerfile: ./gromox-archive/Dockerfile
+    restart: unless-stopped
+    runtime: sysbox-runc
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RESOURCE
+    volumes:
+      - opensuse-data:/data
+    #ports:
+    #  - "2222:22"  # SSH
+    #  - "8443:8443" # Grommunio Admin
+    #  - "443:443" # Grommunio Web
+    tty: true
+    stdin_open: true
+    networks:
+      mynet:
+        aliases:
+          - gromox-archive
+    env_file:
+      - var.env
+    depends_on:
+      gromox-db:
         condition: service_healthy
       archive-db:
         condition: service_healthy
