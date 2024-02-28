@@ -15,7 +15,6 @@ if ! test -e "$LOGFILE"; then
 	true >"$LOGFILE"
 	chmod 0600 "$LOGFILE"
 fi
-# shellcheck source=common/helpers
 . "${DATADIR}/common/helpers"
 TMPF=$(mktemp /tmp/grommunio-setup.XXXXXXXX)
 
@@ -37,8 +36,6 @@ memory_check()
 memory_check
 
 # Set repository credentials directly
-# shellcheck source=common/repo
-#INSTALLVALUE="core, chat, files, office, archive"
 INSTALLVALUE="archive"
 
 X500="i$(printf "%llx" "$(date +%s)")"
@@ -83,58 +80,20 @@ fi
 
 [ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
 
-# Configure config.json of admin-web
-#cat > /etc/grommunio-admin-common/nginx.d/web-config.conf <<EOF
-#location /config.json {
-#  alias /etc/grommunio-admin-common/config.json;
-#}
-#EOF
-
-
-#systemctl enable redis@grommunio.service gromox-delivery.service gromox-event.service \
-#  gromox-http.service gromox-imap.service gromox-midb.service gromox-pop3.service \
-#  gromox-delivery-queue.service gromox-timer.service gromox-zcore.service grommunio-antispam.service \
-#  php-fpm.service nginx.service grommunio-admin-api.service saslauthd.service mariadb >>"${LOGFILE}" 2>&1
-
-# Domain and X500
-#for SERVICE in http midb zcore imap pop3 smtp delivery ; do
-#  setconf /etc/gromox/${SERVICE}.cfg default_domain "${DOMAIN}"
-#done
-#for CFG in midb.cfg zcore.cfg exmdb_local.cfg exmdb_provider.cfg exchange_emsmdb.cfg exchange_nsp.cfg ; do
-#  setconf "/etc/gromox/${CFG}" x500_org_name "${X500}"
-#done
 writelog "Config stage: put php files into place"
 if [ -d /etc/php8 ]; then
   if [ -e "/etc/php8/fpm/php-fpm.conf.default" ] ; then
     mv /etc/php8/fpm/php-fpm.conf.default /etc/php8/fpm/php-fpm.conf
   fi
-#  cp -f /usr/share/gromox/fpm-gromox.conf.sample /etc/php8/fpm/php-fpm.d/gromox.conf
 elif [ -d /etc/php7 ]; then
   if [ -e "/etc/php7/fpm/php-fpm.conf.default" ] ; then
     mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf
   fi
-#  cp -f /usr/share/gromox/fpm-gromox.conf.sample /etc/php7/fpm/php-fpm.d/gromox.conf
 fi
 
-{
-  firewall-cmd --add-service=https --zone=public --permanent
-  firewall-cmd --add-port=25/tcp --zone=public --permanent
-  firewall-cmd --add-port=80/tcp --zone=public --permanent
-  firewall-cmd --add-port=110/tcp --zone=public --permanent
-  firewall-cmd --add-port=143/tcp --zone=public --permanent
-  firewall-cmd --add-port=587/tcp --zone=public --permanent
-  firewall-cmd --add-port=993/tcp --zone=public --permanent
-  firewall-cmd --add-port=995/tcp --zone=public --permanent
-  firewall-cmd --add-port=8080/tcp --zone=public --permanent
-  firewall-cmd --add-port=8443/tcp --zone=public --permanent
-  firewall-cmd --reload
-} >>"${LOGFILE}" 2>&1
+. "/home/scripts/firewall.sh"
 
 systemctl restart saslauthd.service >>"${LOGFILE}" 2>&1
-# redis@grommunio.service nginx.service php-fpm.service gromox-delivery.service \
-#  gromox-event.service gromox-http.service gromox-imap.service gromox-midb.service \
-#  gromox-pop3.service gromox-delivery-queue.service gromox-timer.service gromox-zcore.service \
-#  grommunio-admin-api.service saslauthd.service grommunio-antispam.service >>"${LOGFILE}" 2>&1
 
 cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
 chown gromox:gromox /etc/grommunio-common/ssl/*
@@ -147,13 +106,6 @@ if [[ $INSTALLVALUE == *"archive"* ]] ; then
   mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" < /usr/share/grommunio-archive/db-mysql.sql
 
   sed -e "s#MYHOSTNAME#${FQDN}#g" -e "s#MYSMTP#${DOMAIN}#g" -e "s/MYSQL_HOSTNAME/${ARCHIVE_MYSQL_HOST}/" -e "s/MYSQL_DATABASE/${ARCHIVE_MYSQL_DB}/" -e "s/MYSQL_PASSWORD/${ARCHIVE_MYSQL_PASS}/" -e "s/MYSQL_USERNAME/${ARCHIVE_MYSQL_USER}/" /etc/grommunio-archive/config-site.dist.php > /etc/grommunio-archive/config-site.php
-
-  #echo "/(.*)/   prepend X-Envelope-To: \$1" > /etc/postfix/grommunio-archiver-envelope.cf
-  #postconf -e "smtpd_recipient_restrictions=permit_sasl_authenticated,permit_mynetworks,check_recipient_access pcre:/etc/postfix/grommunio-archiver-envelope.cf,reject_unknown_recipient_domain,reject_non_fqdn_hostname,reject_non_fqdn_sender,reject_non_fqdn_recipient,reject_unauth_destination,reject_unauth_pipelining" # set this up on gromox
-
-  #postconf -e "always_bcc=archive@${FQDN}" # set this up on gromox
-  #echo "archive@${FQDN} smtp:[127.0.0.1]:2693" > /etc/postfix/transport # set this up on gromox
-  #postmap /etc/postfix/transport # set this up on gromox
 
   mv /etc/grommunio-archive/grommunio-archive.conf.dist /etc/grommunio-archive/grommunio-archive.conf
   setconf /etc/grommunio-archive/grommunio-archive.conf mysqluser "${ARCHIVE_MYSQL_USER}" 0
@@ -172,17 +124,10 @@ if [[ $INSTALLVALUE == *"archive"* ]] ; then
 
   < /dev/urandom head -c 56 > /etc/grommunio-archive/grommunio-archive.key
 
-  #systemctl enable searchd.service grommunio-archive-smtp.service grommunio-archive.service postfix.service >>"${LOGFILE}" 2>&1
-  #systemctl restart searchd.service grommunio-archive-smtp.service grommunio-archive.service postfix.service >>"${LOGFILE}" 2>&1
-  
   systemctl enable searchd.service grommunio-archive-smtp.service grommunio-archive.service >>"${LOGFILE}" 2>&1
   systemctl restart searchd.service grommunio-archive-smtp.service grommunio-archive.service >>"${LOGFILE}" 2>&1
 
-  #jq '.archiveWebAddress |= "https://'${FQDN}'/archive"' /tmp/config.json > /tmp/config-new.json
-  #mv /tmp/config-new.json /tmp/config.json
-
 fi
-#mv /tmp/config.json /etc/grommunio-admin-common/config.json
 systemctl enable nginx.service php-fpm.service >>"${LOGFILE}" 2>&1
 systemctl start nginx.service php-fpm.service >>"${LOGFILE}" 2>&1
 setup_done

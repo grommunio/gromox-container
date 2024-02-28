@@ -54,7 +54,6 @@ RUN    systemctl unmask                                                  \
 RUN    echo "ReadKMsg=no" >> /etc/systemd/journald.conf                                                             
                                                                 
     # Create default user if needed
-    # useradd --create-home --shell /bin/bash your_username -G wheel && echo "your_username:your_password" | chpasswd
 RUN    groupadd 'wheel' &&                         \
     useradd -m -s /bin/bash -G wheel admin && echo "admin:admin" | chpasswd
 
@@ -63,18 +62,13 @@ COPY gromox-archive/common /home/common
 COPY gromox-archive/config /home/config
 COPY var.env /home/var.env
 
-RUN chmod +x /home/scripts/db.sh
-
-COPY gromox-archive/scripts/db.service /etc/systemd/system/db.service
 COPY gromox-archive/scripts/entry.service /etc/systemd/system/entry.service
-
 COPY gromox-archive/entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
 
 RUN chmod +x /home/scripts/enable.sh
 RUN sh /home/scripts/enable.sh
 
-#RUN yes | sh /home/entrypoint.sh
 # Make use of stopsignal (instead of sigterm) to stop systemd containers.
 
 # Set systemd as entrypoint.
