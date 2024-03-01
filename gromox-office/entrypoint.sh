@@ -38,8 +38,7 @@ memory_check
 
 # Set repository credentials directly
 # shellcheck source=common/repo
-#INSTALLVALUE="core, chat, files, office, archive"
-INSTALLVALUE="office"
+INSTALLVALUE="files, office"
 
 X500="i$(printf "%llx" "$(date +%s)")"
 #Choose Install type, 0 for self signed, 2 to provide certificate and 3 for letsencrypt.
@@ -83,45 +82,11 @@ fi
 
 [ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
 
-# Configure config.json of admin-web
-cat > /etc/grommunio-admin-common/nginx.d/web-config.conf <<EOF
-location /config.json {
-  alias /etc/grommunio-admin-common/config.json;
-}
-EOF
+systemctl enable nginx.service saslauthd.service >>"${LOGFILE}" 2>&1 
 
+. "/home/scripts/firewall.sh"
 
-systemctl enable redis@grommunio.service gromox-delivery.service gromox-event.service \
-  gromox-http.service gromox-imap.service gromox-midb.service gromox-pop3.service \
-  gromox-delivery-queue.service gromox-timer.service gromox-zcore.service grommunio-antispam.service \
-  php-fpm.service nginx.service grommunio-admin-api.service saslauthd.service mariadb >>"${LOGFILE}" 2>&1
-
-# Domain and X500
-for SERVICE in http midb zcore imap pop3 smtp delivery ; do
-  setconf /etc/gromox/${SERVICE}.cfg default_domain "${DOMAIN}"
-done
-for CFG in midb.cfg zcore.cfg exmdb_local.cfg exmdb_provider.cfg exchange_emsmdb.cfg exchange_nsp.cfg ; do
-  setconf "/etc/gromox/${CFG}" x500_org_name "${X500}"
-done
-
-{
-  firewall-cmd --add-service=https --zone=public --permanent
-  firewall-cmd --add-port=25/tcp --zone=public --permanent
-  firewall-cmd --add-port=80/tcp --zone=public --permanent
-  firewall-cmd --add-port=110/tcp --zone=public --permanent
-  firewall-cmd --add-port=143/tcp --zone=public --permanent
-  firewall-cmd --add-port=587/tcp --zone=public --permanent
-  firewall-cmd --add-port=993/tcp --zone=public --permanent
-  firewall-cmd --add-port=995/tcp --zone=public --permanent
-  firewall-cmd --add-port=8080/tcp --zone=public --permanent
-  firewall-cmd --add-port=8443/tcp --zone=public --permanent
-  firewall-cmd --reload
-} >>"${LOGFILE}" 2>&1
-
-systemctl restart redis@grommunio.service nginx.service php-fpm.service gromox-delivery.service \
-  gromox-event.service gromox-http.service gromox-imap.service gromox-midb.service \
-  gromox-pop3.service gromox-delivery-queue.service gromox-timer.service gromox-zcore.service \
-  grommunio-admin-api.service saslauthd.service grommunio-antispam.service >>"${LOGFILE}" 2>&1
+systemctl restart nginx.service saslauthd.service >>"${LOGFILE}" 2>&1 
 
 if [[ $INSTALLVALUE == *"files"* ]] ; then
 
