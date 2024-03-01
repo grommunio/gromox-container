@@ -41,8 +41,6 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 RUN    zypper --non-interactive install -y vim nginx        \
 	grommunio-common firewalld cyrus-sasl-saslauthd cyrus-sasl-plain jq  rabbitmq-server grommunio-office
 
-	#grommunio-archive sphinx  docker openssh-server\ 
-
     # Unmask services
 RUN    systemctl unmask                                                  \
         systemd-remount-fs.service                                    \

@@ -152,10 +152,6 @@ services:
       - SYS_RESOURCE
     volumes:
       - opensuse-data:/data
-    #ports:
-    #  - "2222:22"  # SSH
-    #  - "8443:8443" # Grommunio Admin
-    #  - "443:443" # Grommunio Web
     tty: true
     stdin_open: true
     networks:
@@ -168,6 +164,33 @@ services:
       gromox-db:
         condition: service_healthy
       archive-db:
+        condition: service_healthy
+
+  gromox-office:
+    build:
+      context: ./
+      dockerfile: ./gromox-office/Dockerfile
+    restart: unless-stopped
+    runtime: sysbox-runc
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RESOURCE
+    volumes:
+      - opensuse-data:/data
+    tty: true
+    stdin_open: true
+    networks:
+      mynet:
+        aliases:
+          - gromox-core
+    env_file:
+      - var.env
+    depends_on:
+      gromox-db:
+        condition: service_healthy
+      files-db:
+        condition: service_healthy
+      office-db:
         condition: service_healthy
 
 networks:
