@@ -39,7 +39,7 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 	  zypper -n refresh grommunio
 
 RUN    zypper --non-interactive install -y vim nginx        \
-	mysql grommunio-common firewalld cyrus-sasl-saslauthd cyrus-sasl-plain jq php-fpm grommunio-files rabbitmq-server grommunio-office
+	mysql grommunio-common firewalld cyrus-sasl-saslauthd cyrus-sasl-plain jq php-fpm redis grommunio-files rabbitmq-server grommunio-office
 
     # Unmask services
 RUN    systemctl unmask                                                  \
@@ -63,9 +63,6 @@ COPY gromox-office/common /home/common
 COPY gromox-office/config /home/config
 COPY var.env /home/var.env
 
-RUN chmod +x /home/scripts/db.sh
-
-COPY gromox-office/scripts/db.service /etc/systemd/system/db.service
 COPY gromox-office/scripts/entry.service /etc/systemd/system/entry.service
 
 COPY gromox-office/entrypoint.sh /home/entrypoint.sh

@@ -82,7 +82,7 @@ fi
 
 [ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
 
-systemctl enable nginx.service saslauthd.service php-fpm.service >>"${LOGFILE}" 2>&1 
+systemctl enable redis@grommunio.service nginx.service saslauthd.service php-fpm.service >>"${LOGFILE}" 2>&1 
 
 . "/home/scripts/firewall.sh"
 
@@ -99,18 +99,20 @@ elif [ -d /etc/php7 ]; then
   fi
 fi
 
-systemctl restart nginx.service saslauthd.service php-fpm.service >>"${LOGFILE}" 2>&1 
+systemctl restart redis@grommunio.service nginx.service saslauthd.service php-fpm.service >>"${LOGFILE}" 2>&1 
 
 if [[ $ENABLE_FILES = true ]] ; then
 
     echo "drop database if exists ${FILES_MYSQL_DB}; \
           create database ${FILES_MYSQL_DB};" | mysql -h"${FILES_MYSQL_HOST}" -u"${FILES_MYSQL_USER}" -p"${FILES_MYSQL_PASS}" "${FILES_MYSQL_DB}" >/dev/null 2>&1
 
-cp /home/config/config.php /usr/share/grommunio-files/config/config.php 
+    sed -i -e 's/memory_limit = 128M/memory_limit = 512M/' /etc/php8/cli/php.ini
+
+    cp /home/config/config.php /usr/share/grommunio-files/config/config.php 
 
  pushd /usr/share/grommunio-files
     rm -rf data/admin >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n maintenance:install --database=mysql --database-name=${FILES_MYSQL_DB} --database-user=${FILES_MYSQL_USER} --database-pass=${FILES_MYSQL_PASS} --admin-user=admin --admin-pass="${FILES_ADMIN_PASS}" --data-dir=/var/lib/grommunio-files/data >>"${LOGFILE}" 2>&1
+    sudo -u grofiles ./occ -q -n maintenance:install --database=mysql --database-host=${FILES_MYSQL_HOST} --database-name=${FILES_MYSQL_DB} --database-user=${FILES_MYSQL_USER} --database-pass=${FILES_MYSQL_PASS} --admin-user=admin --admin-pass="${FILES_ADMIN_PASS}" --data-dir=/var/lib/grommunio-files/data >>"${LOGFILE}" 2>&1
     sudo -u grofiles ./occ -q -n config:system:set trusted_domains 1 --value="${FQDN}" >>"${LOGFILE}" 2>&1
     sudo -u grofiles ./occ -q -n config:system:set trusted_domains 2 --value="${DOMAIN}" >>"${LOGFILE}" 2>&1
     sudo -u grofiles ./occ -q -n config:system:set trusted_domains 3 --value="mail.${DOMAIN}" >>"${LOGFILE}" 2>&1
