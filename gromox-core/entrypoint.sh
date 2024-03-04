@@ -283,7 +283,7 @@ systemctl restart redis@grommunio.service nginx.service php-fpm.service gromox-d
   gromox-pop3.service gromox-delivery-queue.service gromox-timer.service gromox-zcore.service \
   grommunio-admin-api.service saslauthd.service grommunio-antispam.service >>"${LOGFILE}" 2>&1
 
-if [[ $INSTALLVALUE == *"files"* ]] ; then
+if [[ $ENABLE_FILES = true ]] ; then
 
     echo "drop database if exists ${FILES_MYSQL_DB}; \
           create database ${FILES_MYSQL_DB};" | mysql -h"${FILES_MYSQL_HOST}" -u"${FILES_MYSQL_USER}" -p"${FILES_MYSQL_PASS}" "${FILES_MYSQL_DB}" >/dev/null 2>&1
@@ -327,7 +327,7 @@ cp /home/config/config.php /usr/share/grommunio-files/config/config.php
 
 fi
 
-if [[ $INSTALLVALUE == *"office"* ]] ; then
+if [[ $ENABLE_OFFICE = true ]] ; then
 
     echo "drop database if exists ${OFFICE_MYSQL_DB}; \
           create database ${OFFICE_MYSQL_DB};" | mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" >/dev/null 2>&1

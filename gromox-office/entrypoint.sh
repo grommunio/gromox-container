@@ -88,7 +88,7 @@ systemctl enable nginx.service saslauthd.service >>"${LOGFILE}" 2>&1
 
 systemctl restart nginx.service saslauthd.service >>"${LOGFILE}" 2>&1 
 
-if [[ $INSTALLVALUE == *"files"* ]] ; then
+if [[ $ENABLE_FILES = true ]] ; then
 
     echo "drop database if exists ${FILES_MYSQL_DB}; \
           create database ${FILES_MYSQL_DB};" | mysql -h"${FILES_MYSQL_HOST}" -u"${FILES_MYSQL_USER}" -p"${FILES_MYSQL_PASS}" "${FILES_MYSQL_DB}" >/dev/null 2>&1
@@ -131,7 +131,7 @@ cp /home/config/config.php /usr/share/grommunio-files/config/config.php
 #  mv /tmp/config-new.json /tmp/config.json
 fi
 
-if [[ $INSTALLVALUE == *"office"* ]] ; then
+if [[ $ENABLE_OFFICE = true ]] ; then
 
     echo "drop database if exists ${OFFICE_MYSQL_DB}; \
           create database ${OFFICE_MYSQL_DB};" | mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" >/dev/null 2>&1
