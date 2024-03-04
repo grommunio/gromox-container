@@ -182,7 +182,7 @@ services:
     networks:
       mynet:
         aliases:
-          - gromox-core
+          - gromox-office
     env_file:
       - var.env
     depends_on:
