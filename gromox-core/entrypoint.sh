@@ -304,7 +304,7 @@ location  /cache/ {
   rewrite /cache/(.*)$ /office/cache/\$1;
 }
 location  /office/ {
-  proxy_pass         https://${OFFICE_HOST}:443/;
+  proxy_pass         https://${OFFICE_HOST}:443/office/;
   proxy_http_version 1.1;
   proxy_set_header Upgrade \$http_upgrade;
   proxy_set_header Connection \$proxy_connection;
