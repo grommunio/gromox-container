@@ -39,7 +39,7 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 	  zypper -n refresh grommunio
 
 RUN    zypper --non-interactive install -y vim nginx        \
-	grommunio-common firewalld cyrus-sasl-saslauthd cyrus-sasl-plain jq php-fpm php8-cli grommunio-files rabbitmq-server grommunio-office
+	grommunio-common firewalld cyrus-sasl-saslauthd cyrus-sasl-plain jq php-fpm grommunio-files rabbitmq-server grommunio-office
 
     # Unmask services
 RUN    systemctl unmask                                                  \
@@ -58,17 +58,17 @@ RUN    echo "ReadKMsg=no" >> /etc/systemd/journald.conf
 RUN    groupadd 'wheel' &&                         \
     useradd -m -s /bin/bash -G wheel admin && echo "admin:admin" | chpasswd
 
-COPY gromox-core/scripts /home/scripts
-COPY gromox-core/common /home/common
-COPY gromox-core/config /home/config
+COPY gromox-office/scripts /home/scripts
+COPY gromox-office/common /home/common
+COPY gromox-office/config /home/config
 COPY var.env /home/var.env
 
 RUN chmod +x /home/scripts/db.sh
 
-COPY gromox-core/scripts/db.service /etc/systemd/system/db.service
-COPY gromox-core/scripts/entry.service /etc/systemd/system/entry.service
+COPY gromox-office/scripts/db.service /etc/systemd/system/db.service
+COPY gromox-office/scripts/entry.service /etc/systemd/system/entry.service
 
-COPY gromox-core/entrypoint.sh /home/entrypoint.sh
+COPY gromox-office/entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
 
 RUN chmod +x /home/scripts/enable.sh
