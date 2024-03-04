@@ -82,14 +82,24 @@ fi
 
 [ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
 
-systemctl enable nginx.service saslauthd.service >>"${LOGFILE}" 2>&1 
+systemctl enable nginx.service saslauthd.service php-fpm.service >>"${LOGFILE}" 2>&1 
 
 . "/home/scripts/firewall.sh"
 
 cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
 chown gromox:gromox /etc/grommunio-common/ssl/*
 
-systemctl restart nginx.service saslauthd.service >>"${LOGFILE}" 2>&1 
+if [ -d /etc/php8 ]; then
+  if [ -e "/etc/php8/fpm/php-fpm.conf.default" ] ; then
+    mv /etc/php8/fpm/php-fpm.conf.default /etc/php8/fpm/php-fpm.conf
+  fi
+elif [ -d /etc/php7 ]; then
+  if [ -e "/etc/php7/fpm/php-fpm.conf.default" ] ; then
+    mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf
+  fi
+fi
+
+systemctl restart nginx.service saslauthd.service php-fpm.service >>"${LOGFILE}" 2>&1 
 
 if [[ $ENABLE_FILES = true ]] ; then
 
