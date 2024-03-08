@@ -205,6 +205,8 @@ cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.con
 ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf
 chown gromox:gromox /etc/grommunio-common/ssl/*
 
+chown grodav:grodav /var/lib/grommunio-dav
+
 # Domain and X500
 for SERVICE in http midb zcore imap pop3 smtp delivery ; do
   setconf /etc/gromox/${SERVICE}.cfg default_domain "${DOMAIN}"
