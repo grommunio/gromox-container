@@ -84,6 +84,8 @@ fi
 
 systemctl enable redis@grommunio.service nginx.service saslauthd.service php-fpm.service >>"${LOGFILE}" 2>&1 
 
+systemctl enable firewalld.service >>"${LOGFILE}" 2>&1
+systemctl start firewalld.service >>"${LOGFILE}" 2>&1
 . "/home/scripts/firewall.sh"
 
 cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
