@@ -382,7 +382,9 @@ EOF
 fi
 
 mv /tmp/config.json /etc/grommunio-admin-common/config.json
+systemctl stop grommunio-chat.service
 systemctl restart grommunio-admin-api.service nginx.service
+systemctl restart grommunio-chat.service
 setup_done
 
 exit 0
