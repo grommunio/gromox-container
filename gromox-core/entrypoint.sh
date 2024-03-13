@@ -150,6 +150,7 @@ elif [ -d /etc/php7 ]; then
   fi
   cp -f /usr/share/gromox/fpm-gromox.conf.sample /etc/php7/fpm/php-fpm.d/gromox.conf
 fi
+
 setconf /etc/gromox/http.cfg listen_port 10080
 setconf /etc/gromox/http.cfg http_support_ssl true
 setconf /etc/gromox/http.cfg listen_ssl_port 10443
@@ -184,8 +185,10 @@ setconf /etc/gromox/http.cfg http_support_ssl true
 setconf /etc/gromox/http.cfg listen_ssl_port 10443
 setconf /etc/gromox/http.cfg host_id ${FQDN}
 
+# Set Grommunio admin password
 grommunio-admin passwd --password "${ADMIN_PASS}" >>"${LOGFILE}" 2>&1
 
+# Set rspamd password
 rspamadm pw -p "${ADMIN_PASS}" | sed -e 's#^#password = "#' -e 's#$#";#' > /etc/grommunio-antispam/local.d/worker-controller.inc
 
 setconf /etc/gromox/http.cfg http_certificate_path "${SSL_BUNDLE_T}"
@@ -205,6 +208,7 @@ cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.con
 ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf
 chown gromox:gromox /etc/grommunio-common/ssl/*
 
+# Make the folder writable for grodav
 chown grodav:grodav /var/lib/grommunio-dav
 
 # Domain and X500
@@ -214,6 +218,8 @@ done
 for CFG in midb.cfg zcore.cfg exmdb_local.cfg exmdb_provider.cfg exchange_emsmdb.cfg exchange_nsp.cfg ; do
   setconf "/etc/gromox/${CFG}" x500_org_name "${X500}"
 done
+
+# Set up postfix and its configuration
 
 generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-domains.cf" "SELECT 1 FROM domains WHERE domain_status=0 AND domainname='%s'"
 generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-alias-maps.cf" "SELECT mainname FROM aliases WHERE aliasname='%s' UNION select destination FROM forwards WHERE username='%s' AND forward_type = 1"
