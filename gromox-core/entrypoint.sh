@@ -285,6 +285,8 @@ location ^~ /files {
 }
 EOF
 
+  jq '.filesWebAddress |= "https://'${FQDN}'/files"' /tmp/config.json > /tmp/config-new.json
+  mv /tmp/config-new.json /tmp/config.json
 fi
 
 if [[ $ENABLE_OFFICE = true ]] ; then
@@ -378,6 +380,8 @@ location ^~ /view {
 	access_log /var/log/nginx/nginx-archive-access.log;
 }
 EOF
+  jq '.archiveWebAddress |= "https://'${FQDN}'/archive"' /tmp/config.json > /tmp/config-new.json
+  mv /tmp/config-new.json /tmp/config.json
 
 fi
 
