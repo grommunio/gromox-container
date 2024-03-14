@@ -121,6 +121,7 @@ services:
       - "2222:22"  # SSH
       - "8443:8443" # Grommunio Admin
       - "443:443" # Grommunio Web
+      - "993:993" # Grommunio IMAP
     tty: true
     stdin_open: true
     networks:
