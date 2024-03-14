@@ -150,6 +150,7 @@ elif [ -d /etc/php7 ]; then
   fi
   cp -f /usr/share/gromox/fpm-gromox.conf.sample /etc/php7/fpm/php-fpm.d/gromox.conf
 fi
+
 setconf /etc/gromox/http.cfg listen_port 10080
 setconf /etc/gromox/http.cfg http_support_ssl true
 setconf /etc/gromox/http.cfg listen_ssl_port 10443
@@ -184,8 +185,10 @@ setconf /etc/gromox/http.cfg http_support_ssl true
 setconf /etc/gromox/http.cfg listen_ssl_port 10443
 setconf /etc/gromox/http.cfg host_id ${FQDN}
 
+# Set Grommunio admin password
 grommunio-admin passwd --password "${ADMIN_PASS}" >>"${LOGFILE}" 2>&1
 
+# Set rspamd password
 rspamadm pw -p "${ADMIN_PASS}" | sed -e 's#^#password = "#' -e 's#$#";#' > /etc/grommunio-antispam/local.d/worker-controller.inc
 
 setconf /etc/gromox/http.cfg http_certificate_path "${SSL_BUNDLE_T}"
@@ -205,6 +208,9 @@ cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.con
 ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf
 chown gromox:gromox /etc/grommunio-common/ssl/*
 
+# Make the folder writable for grodav
+chown grodav:grodav /var/lib/grommunio-dav
+
 # Domain and X500
 for SERVICE in http midb zcore imap pop3 smtp delivery ; do
   setconf /etc/gromox/${SERVICE}.cfg default_domain "${DOMAIN}"
@@ -212,6 +218,8 @@ done
 for CFG in midb.cfg zcore.cfg exmdb_local.cfg exmdb_provider.cfg exchange_emsmdb.cfg exchange_nsp.cfg ; do
   setconf "/etc/gromox/${CFG}" x500_org_name "${X500}"
 done
+
+# Set up postfix and its configuration
 
 generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-domains.cf" "SELECT 1 FROM domains WHERE domain_status=0 AND domainname='%s'"
 generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-alias-maps.cf" "SELECT mainname FROM aliases WHERE aliasname='%s' UNION select destination FROM forwards WHERE username='%s' AND forward_type = 1"
@@ -261,100 +269,51 @@ postconf -P submission/inet/milter_macro_daemon_name=ORIGINATING
 systemctl enable postfix.service >>"${LOGFILE}" 2>&1
 systemctl restart postfix.service >>"${LOGFILE}" 2>&1
 
-systemctl enable grommunio-fetchmail.timer >>"${LOGFILE}" 2>&1
-systemctl start grommunio-fetchmail.timer >>"${LOGFILE}" 2>&1
+systemctl enable firewalld.service grommunio-fetchmail.timer >>"${LOGFILE}" 2>&1
+systemctl start firewalld.service grommunio-fetchmail.timer >>"${LOGFILE}" 2>&1
 
-{
-  firewall-cmd --add-service=https --zone=public --permanent
-  firewall-cmd --add-port=25/tcp --zone=public --permanent
-  firewall-cmd --add-port=80/tcp --zone=public --permanent
-  firewall-cmd --add-port=110/tcp --zone=public --permanent
-  firewall-cmd --add-port=143/tcp --zone=public --permanent
-  firewall-cmd --add-port=587/tcp --zone=public --permanent
-  firewall-cmd --add-port=993/tcp --zone=public --permanent
-  firewall-cmd --add-port=995/tcp --zone=public --permanent
-  firewall-cmd --add-port=8080/tcp --zone=public --permanent
-  firewall-cmd --add-port=8443/tcp --zone=public --permanent
-  firewall-cmd --reload
-} >>"${LOGFILE}" 2>&1
+. "/home/scripts/firewall.sh"
 
 systemctl restart redis@grommunio.service nginx.service php-fpm.service gromox-delivery.service \
   gromox-event.service gromox-http.service gromox-imap.service gromox-midb.service \
   gromox-pop3.service gromox-delivery-queue.service gromox-timer.service gromox-zcore.service \
   grommunio-admin-api.service saslauthd.service grommunio-antispam.service >>"${LOGFILE}" 2>&1
 
-if [[ $INSTALLVALUE == *"files"* ]] ; then
+if [[ $ENABLE_FILES = true ]] ; then
 
-    echo "drop database if exists ${FILES_MYSQL_DB}; \
-          create database ${FILES_MYSQL_DB};" | mysql -h"${FILES_MYSQL_HOST}" -u"${FILES_MYSQL_USER}" -p"${FILES_MYSQL_PASS}" "${FILES_MYSQL_DB}" >/dev/null 2>&1
+cat > /usr/share/grommunio-common/nginx/locations.d/grommunio-files.conf <<EOF
+location ^~ /files {
+	proxy_pass https://${OFFICE_HOST}:443/files;
+	proxy_request_buffering off;
+	proxy_buffering off;
+	error_log /var/log/nginx/nginx-files-error.log;
+	access_log /var/log/nginx/nginx-files-access.log;
+}
+EOF
 
-cp /home/config/config.php /usr/share/grommunio-files/config/config.php 
-
- pushd /usr/share/grommunio-files
-    rm -rf data/admin >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n maintenance:install --database=mysql --database-name=${FILES_MYSQL_DB} --database-user=${FILES_MYSQL_USER} --database-pass=${FILES_MYSQL_PASS} --admin-user=admin --admin-pass="${FILES_ADMIN_PASS}" --data-dir=/var/lib/grommunio-files/data >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set trusted_domains 1 --value="${FQDN}" >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set trusted_domains 2 --value="${DOMAIN}" >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set trusted_domains 3 --value="mail.${DOMAIN}" >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n app:enable user_external >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set user_backends 0 arguments 0 --value="https://${FQDN}/dav" >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set user_backends 0 class --value='\OCA\UserExternal\BasicAuth' >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n app:enable onlyoffice >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set integrity.check.disabled --type boolean --value true >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n theming:config name 'grommunio Files' >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n theming:config logo /usr/share/grommunio-files/logo.png >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n theming:config logoheader /usr/share/grommunio-files/logo.png >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n theming:config favicon /usr/share/grommunio-files/favicon.svg >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n theming:config background /usr/share/grommunio-files/background.jpg >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n theming:config disable-user-theming true >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n theming:config slogan 'filesync & sharing' >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n theming:config url 'https://grommunio.com' >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n theming:config color '#0072B0' >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set mail_from_address --value='admin' >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set mail_smtpmode --value='sendmail' >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set mail_sendmailmode --value='smtp' >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set mail_domain --value="${DOMAIN}" >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set mail_smtphost --value='localhost' >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n config:system:set mail_smtpport --value='25' >>"${LOGFILE}" 2>&1
-  popd || return
-
-  systemctl enable grommunio-files-cron.service >>"${LOGFILE}" 2>&1
-  systemctl enable grommunio-files-cron.timer >>"${LOGFILE}" 2>&1
-  systemctl start grommunio-files-cron.timer >>"${LOGFILE}" 2>&1
-
-  jq '.fileWebAddress |= "https://'${FQDN}'/files"' /tmp/config.json > /tmp/config-new.json
+  jq '.filesWebAddress |= "https://'${FQDN}'/files"' /tmp/config.json > /tmp/config-new.json
   mv /tmp/config-new.json /tmp/config.json
-
 fi
 
-if [[ $INSTALLVALUE == *"office"* ]] ; then
+if [[ $ENABLE_OFFICE = true ]] ; then
 
-    echo "drop database if exists ${OFFICE_MYSQL_DB}; \
-          create database ${OFFICE_MYSQL_DB};" | mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" >/dev/null 2>&1
+cat > /usr/share/grommunio-common/nginx/locations.d/grommunio-office.conf <<EOF
+location  /cache/ {
+  rewrite /cache/(.*)$ /office/cache/\$1;
+}
+location  /office/ {
+  proxy_pass         https://${OFFICE_HOST}:443/office/;
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade \$http_upgrade;
+  proxy_set_header Connection \$proxy_connection;
+  proxy_set_header X-Forwarded-Host \$the_host/office;
+  proxy_set_header X-Forwarded-Proto \$the_scheme;
+  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+  access_log /var/log/nginx/nginx-office-access.log;
+  error_log /var/log/nginx/nginx-office-error.log;
+}
+EOF
 
-  sed -i -e "/^CREATE DATABASE/d" -e "/^USE/d" /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
-  mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" < /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
-
-  jq '.services.CoAuthoring.sql.dbHost |= "'${OFFICE_MYSQL_HOST}'" | .services.CoAuthoring.sql.dbName |= "'${OFFICE_MYSQL_DB}'" | .services.CoAuthoring.sql.dbUser |= "'${OFFICE_MYSQL_USER}'" | .services.CoAuthoring.sql.dbPass |= "'${OFFICE_MYSQL_PASS}'"' /etc/grommunio-office/default.json > /tmp/default.json
-  mv /tmp/default.json /etc/grommunio-office/default.json
-
-  systemctl enable rabbitmq-server.service >>"${LOGFILE}" 2>&1
-  systemctl start rabbitmq-server.service >>"${LOGFILE}" 2>&1
-  systemctl start ds-themegen.service ds-fontgen.service  >>"${LOGFILE}" 2>&1
-  systemctl enable ds-converter.service ds-docservice.service >>"${LOGFILE}" 2>&1
-  systemctl start ds-converter.service ds-docservice.service >>"${LOGFILE}" 2>&1
-  pushd /usr/share/grommunio-files || return
-    sudo -u grofiles ./occ -q -n config:system:set --type boolean --value="true" csrf.disabled
-    sudo -u grofiles ./occ -q -n config:app:set onlyoffice DocumentServerUrl --value="https://${FQDN}/office/"
-    sudo -u grofiles ./occ -q -n config:app:set onlyoffice DocumentServerInternalUrl --value="https://${FQDN}/office/"
-    sudo -u grofiles ./occ -q -n config:app:set onlyoffice StorageUrl --value="https://${FQDN}/files/"
-    sudo -u grofiles ./occ -q -n config:app:set onlyoffice customizationChat --value=false
-    sudo -u grofiles ./occ -q -n config:app:set onlyoffice customizationCompactHeader --value=true
-    sudo -u grofiles ./occ -q -n config:app:set onlyoffice customizationFeedback --value=false
-    sudo -u grofiles ./occ -q -n config:app:set onlyoffice customizationToolbarNoTabs --value=true
-    sudo -u grofiles ./occ -q -n config:app:set onlyoffice preview --value=false
-    sudo -u grofiles ./occ -q -n config:app:set onlyoffice sameTab --value=true
-  popd || return
 fi
 
 if [[ $ENABLE_ARCHIVE = true ]] ; then
@@ -427,11 +386,15 @@ location ^~ /view {
 	access_log /var/log/nginx/nginx-archive-access.log;
 }
 EOF
+  jq '.archiveWebAddress |= "https://'${FQDN}'/archive"' /tmp/config.json > /tmp/config-new.json
+  mv /tmp/config-new.json /tmp/config.json
 
 fi
 
 mv /tmp/config.json /etc/grommunio-admin-common/config.json
+systemctl stop grommunio-chat.service
 systemctl restart grommunio-admin-api.service nginx.service
+systemctl restart grommunio-chat.service
 setup_done
 
 exit 0

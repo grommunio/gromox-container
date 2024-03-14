@@ -38,8 +38,8 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 	  zypper --gpg-auto-import-keys ref && \
 	  zypper -n refresh grommunio
 
-RUN    zypper --non-interactive install -y vim mysql         \
-       php8-mysql php8-cli php8-openssl php-fpm grommunio-archive sphinx nginx jq firewalld cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common 
+RUN    zypper --non-interactive install -y vim nginx        \
+	mysql grommunio-common firewalld cyrus-sasl-saslauthd cyrus-sasl-plain jq php-fpm redis grommunio-files rabbitmq-server grommunio-office
 
     # Unmask services
 RUN    systemctl unmask                                                  \
@@ -54,22 +54,22 @@ RUN    systemctl unmask                                                  \
 RUN    echo "ReadKMsg=no" >> /etc/systemd/journald.conf                                                             
                                                                 
     # Create default user if needed
+    # useradd --create-home --shell /bin/bash your_username -G wheel && echo "your_username:your_password" | chpasswd
 RUN    groupadd 'wheel' &&                         \
     useradd -m -s /bin/bash -G wheel admin && echo "admin:admin" | chpasswd
 
-COPY gromox-archive/scripts /home/scripts
-COPY gromox-archive/common /home/common
-COPY gromox-archive/config /home/config
+COPY gromox-office/scripts /home/scripts
+COPY gromox-office/common /home/common
+COPY gromox-office/config /home/config
 COPY var.env /home/var.env
 
-COPY gromox-archive/scripts/entry.service /etc/systemd/system/entry.service
-COPY gromox-archive/entrypoint.sh /home/entrypoint.sh
+COPY gromox-office/scripts/entry.service /etc/systemd/system/entry.service
+
+COPY gromox-office/entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
 
 RUN chmod +x /home/scripts/enable.sh
 RUN sh /home/scripts/enable.sh
-
-# Make use of stopsignal (instead of sigterm) to stop systemd containers.
 
 # Set systemd as entrypoint.
 ENTRYPOINT [ "/usr/lib/systemd/systemd", "--log-level=err" ]

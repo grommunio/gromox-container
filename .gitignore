@@ -5,5 +5,4 @@ cert.pem
 scripts/db-old.sh
 docker-compose-old.yml
 gromox-files
-gromox-office
 

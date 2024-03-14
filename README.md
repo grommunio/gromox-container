@@ -34,4 +34,10 @@ The docker compose file can be modified (and **should be**) for development or p
 
 Please edit the variables in the `var.env` file to suit your deployment.
 
-
+## Caveats
+* If you are testing without a valid domain, please ensure you perform the action below otherwise your file service will be unreachable. 
+  ```
+  docker exec -it <your office container name> bash
+  cd /usr/share/grommunio-files
+  sudo -u grofiles ./occ -q -n config:system:set trusted_domains 3 --value="<YOUR SERVER IP>" 
+  ```
