@@ -117,6 +117,7 @@ services:
       - SYS_RESOURCE
     volumes:
       - opensuse-data:/data
+      - variables_data:/home/vars
     ports:
       - "2222:22"  # SSH
       - "8443:8443" # Grommunio Admin
@@ -153,6 +154,7 @@ services:
       - SYS_RESOURCE
     volumes:
       - opensuse-data:/data
+      - variables_data:/home/vars
     tty: true
     stdin_open: true
     networks:
@@ -178,6 +180,7 @@ services:
       - SYS_RESOURCE
     volumes:
       - opensuse-data:/data
+      - variables_data:/home/vars
     tty: true
     stdin_open: true
     networks:
@@ -218,3 +221,5 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/opensuse-data
+  variables_data:
+    external: true

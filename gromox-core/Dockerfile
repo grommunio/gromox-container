@@ -65,7 +65,6 @@ RUN    groupadd 'wheel' &&                         \
 COPY gromox-core/scripts /home/scripts
 COPY gromox-core/common /home/common
 COPY gromox-core/config /home/config
-COPY var.env /home/var.env
 
 RUN chmod +x /home/scripts/db.sh
 
