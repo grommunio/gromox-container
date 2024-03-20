@@ -41,17 +41,6 @@ memory_check
 INSTALLVALUE="core, chat"
 
 X500="i$(printf "%llx" "$(date +%s)")"
-#Choose Install type, 0 for self signed, 2 to provide certificate and 3 for letsencrypt.
-SSL_INSTALL_TYPE=0
-
-SSL_COUNTRY="XX"
-SSL_STATE="XX"
-SSL_LOCALITY="X"
-SSL_ORG="grommunio Appliance"
-SSL_OU="IT"
-SSL_EMAIL="admin@${DOMAIN}"
-SSL_DAYS=30
-SSL_PASS=grommunio
 
 . "/home/common/ssl_setup"
 mkdir /etc/grommunio-common/ssl
@@ -62,7 +51,7 @@ if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
   touch ssle
   fi
 elif [ "${SSL_INSTALL_TYPE}" = "2" ]; then
-  choose_ssl_selfprovided
+  #choose_ssl_selfprovided
   fullca
   SSL_BUNDLE=/home/ssl/grommox.pem
   SSL_KEY=/home/ssl/grommox.pem
@@ -71,7 +60,7 @@ elif [ "${SSL_INSTALL_TYPE}" = "2" ]; then
     RETCMD=$?
   done
 elif [ "${SSL_INSTALL_TYPE}" = "3" ]; then
-  choose_ssl_letsencrypt
+  #choose_ssl_letsencrypt
   #this should containe the domain to signed by certbot
   SSL_DOMAINS=$FQDN
 

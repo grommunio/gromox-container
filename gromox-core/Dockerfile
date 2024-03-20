@@ -40,8 +40,9 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 
 RUN    zypper --non-interactive install -y vim mysql        \
 	gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
-	  grommunio-common grommunio-web grommunio-sync grommunio-dav postfix postfix-mysql \  
-	  grommunio-chat firewalld cyrus-sasl-saslauthd cyrus-sasl-plain jq 
+	grommunio-common grommunio-web grommunio-sync grommunio-dav postfix postfix-mysql \  
+	grommunio-chat firewalld cyrus-sasl-saslauthd cyrus-sasl-plain jq \
+	python3-certbot python3-certbot-nginx
 
 	#grommunio-archive sphinx  docker openssh-server grommunio-office rabbitmq-server \ 
 

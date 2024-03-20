@@ -47,7 +47,8 @@ owncert() {
 
 letsencrypt() {
 
-  zypper install -y python3-certbot python3-certbot-nginx nginx >>"${LOGFILE}" 2>&1
+  systemctl start firewalld.service >>"${LOGFILE}" 2>&1
+
   {
     firewall-cmd --add-port=80/tcp --zone=public --permanent
     firewall-cmd --add-service=https --zone=public --permanent
