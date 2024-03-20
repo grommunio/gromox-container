@@ -38,7 +38,6 @@ memory_check
 
 # Set repository credentials directly
 # shellcheck source=common/repo
-#INSTALLVALUE="core, chat, files, office, archive"
 INSTALLVALUE="core, chat"
 
 X500="i$(printf "%llx" "$(date +%s)")"
@@ -291,7 +290,7 @@ location ^~ /files {
 }
 EOF
 
-  jq '.filesWebAddress |= "https://'${FQDN}'/files"' /tmp/config.json > /tmp/config-new.json
+  jq '.fileWebAddress |= "https://'${FQDN}'/files"' /tmp/config.json > /tmp/config-new.json
   mv /tmp/config-new.json /tmp/config.json
 fi
 

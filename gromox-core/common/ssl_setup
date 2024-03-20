@@ -47,9 +47,7 @@ owncert() {
 
 letsencrypt() {
 
-  progress 0
   zypper install -y python3-certbot python3-certbot-nginx nginx >>"${LOGFILE}" 2>&1
-  progress 60
   {
     firewall-cmd --add-port=80/tcp --zone=public --permanent
     firewall-cmd --add-service=https --zone=public --permanent
@@ -59,14 +57,11 @@ letsencrypt() {
   [ -e "/etc/nginx/conf.d/grommunio.conf" ] && mv "/etc/nginx/conf.d/grommunio.conf" "/etc/nginx/conf.d/grommunio.conf.grommunio-setup"
 
   systemctl stop nginx >>"${LOGFILE}" 2>&1
-  progress 75
   certbot certonly -n --standalone --agree-tos \
     --preferred-challenges http \
     --cert-name="${FQDN}" \
     -d "${SSL_DOMAINS}" \
     -m "${SSL_EMAIL}" >>"${LOGFILE}" 2>&1
-
-  progress 95
 
   [ -e "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" ] && mv "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" "/etc/nginx/conf.d/grommunio.conf"
 
