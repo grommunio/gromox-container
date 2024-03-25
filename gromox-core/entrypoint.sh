@@ -50,7 +50,7 @@ if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
   if ! selfcert; then
   touch ssle
   fi
-elif [ "${SSL_INSTALL_TYPE}" = "1" ]; then
+elif [ "${SSL_INSTALL_TYPE}" = "2" ]; then
   #choose_ssl_letsencrypt
   #this should containe the domain to signed by certbot
   SSL_DOMAINS=$FQDN

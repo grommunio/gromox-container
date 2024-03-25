@@ -133,11 +133,11 @@ services:
           - gromox-core
     env_file:
       - var.env
-    healthcheck:
-      test: curl --fail -s http://localhost:8443/ || exit 1
-      interval: 45s
-      timeout: 10s
-      retries: 5
+    #healthcheck:
+    #  test: curl --fail -s http://localhost:8443/ || exit 1
+    #  interval: 45s
+    #  timeout: 10s
+    #  retries: 5
     depends_on:
       gromox-db:
         condition: service_healthy
@@ -177,7 +177,7 @@ services:
       archive-db:
         condition: service_healthy
       gromox-core:
-        condition: service_healthy
+        condition: service_started
 
   gromox-office:
     build:
@@ -208,7 +208,7 @@ services:
       office-db:
         condition: service_healthy
       gromox-core:
-        condition: service_healthy
+        condition: service_started
 
 networks:
   mynet:
