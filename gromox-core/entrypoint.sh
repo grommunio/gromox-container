@@ -112,9 +112,9 @@ if [[ $INSTALLVALUE == *"chat"* ]] ; then
     MMCTL_LOCAL_SOCKET_PATH=/var/tmp/grommunio-chat_local.socket bin/grommunio-chat-ctl --local user create --email admin@localhost --username admin --password "${CHAT_ADMIN_PASS}" --system-admin >>"${LOGFILE}" 2>&1
   popd || return
 
-  if [ "${SSL_INSTALL_TYPE}" = "0" ] || [ "${SSL_INSTALL_TYPE}" = "1" ] ; then
+#  if [ "${SSL_INSTALL_TYPE}" = "0" ] || [ "${SSL_INSTALL_TYPE}" = "1" ] ; then
 	generate_admin_chat_conf "/etc/grommunio-admin-api/conf.d/chat.yaml"
-  fi
+#  fi
 
   chmod 640 ${CHAT_CONFIG}
   jq '.chatWebAddress |= "https://'${FQDN}'/chat"' /tmp/config.json > /tmp/config-new.json
