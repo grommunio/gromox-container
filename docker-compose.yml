@@ -118,6 +118,7 @@ services:
     volumes:
       - opensuse-data:/data
       - variables_data:/home/vars
+      - cert_data:/etc/grommunio-common/ssl
     ports:
       - "2222:22"  # SSH
       - "8443:8443" # Grommunio Admin
@@ -132,6 +133,11 @@ services:
           - gromox-core
     env_file:
       - var.env
+    healthcheck:
+      test: curl --fail -s http://localhost:8443/ || exit 1
+      interval: 45s
+      timeout: 10s
+      retries: 5
     depends_on:
       gromox-db:
         condition: service_healthy
@@ -156,6 +162,7 @@ services:
     volumes:
       - opensuse-data:/data
       - variables_data:/home/vars
+      - cert_data:/etc/grommunio-common/ssl
     tty: true
     stdin_open: true
     networks:
@@ -168,6 +175,8 @@ services:
       gromox-db:
         condition: service_healthy
       archive-db:
+        condition: service_healthy
+      gromox-core:
         condition: service_healthy
 
   gromox-office:
@@ -182,6 +191,7 @@ services:
     volumes:
       - opensuse-data:/data
       - variables_data:/home/vars
+      - cert_data:/etc/grommunio-common/ssl
     tty: true
     stdin_open: true
     networks:
@@ -196,6 +206,8 @@ services:
       files-db:
         condition: service_healthy
       office-db:
+        condition: service_healthy
+      gromox-core:
         condition: service_healthy
 
 networks:
@@ -224,3 +236,4 @@ volumes:
       device: ${PWD}/opensuse-data
   variables_data:
     external: true
+  cert_data:

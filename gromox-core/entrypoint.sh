@@ -50,16 +50,7 @@ if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
   if ! selfcert; then
   touch ssle
   fi
-elif [ "${SSL_INSTALL_TYPE}" = "2" ]; then
-  #choose_ssl_selfprovided
-  fullca
-  SSL_BUNDLE=/home/ssl/grommox.pem
-  SSL_KEY=/home/ssl/grommox.pem
-  while [ ${RETCMD} -ne 0 ]; do
-    owncert
-    RETCMD=$?
-  done
-elif [ "${SSL_INSTALL_TYPE}" = "3" ]; then
+elif [ "${SSL_INSTALL_TYPE}" = "1" ]; then
   #choose_ssl_letsencrypt
   #this should containe the domain to signed by certbot
   SSL_DOMAINS=$FQDN
@@ -69,7 +60,7 @@ elif [ "${SSL_INSTALL_TYPE}" = "3" ]; then
   letsencrypt
 fi
 
-[ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
+#[ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
 
 # Configure config.json of admin-web
 cat > /etc/grommunio-admin-common/nginx.d/web-config.conf <<EOF
@@ -112,9 +103,7 @@ if [[ $INSTALLVALUE == *"chat"* ]] ; then
     MMCTL_LOCAL_SOCKET_PATH=/var/tmp/grommunio-chat_local.socket bin/grommunio-chat-ctl --local user create --email admin@localhost --username admin --password "${CHAT_ADMIN_PASS}" --system-admin >>"${LOGFILE}" 2>&1
   popd || return
 
-#  if [ "${SSL_INSTALL_TYPE}" = "0" ] || [ "${SSL_INSTALL_TYPE}" = "1" ] ; then
-	generate_admin_chat_conf "/etc/grommunio-admin-api/conf.d/chat.yaml"
-#  fi
+  generate_admin_chat_conf "/etc/grommunio-admin-api/conf.d/chat.yaml"
 
   chmod 640 ${CHAT_CONFIG}
   jq '.chatWebAddress |= "https://'${FQDN}'/chat"' /tmp/config.json > /tmp/config-new.json
