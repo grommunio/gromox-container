@@ -58,7 +58,7 @@ systemctl start firewalld.service >>"${LOGFILE}" 2>&1
 . "/home/scripts/firewall.sh"
 
 cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
-chown gromox:gromox /etc/grommunio-common/ssl/*
+#chown gromox:gromox /etc/grommunio-common/ssl/*
 
 if [ -d /etc/php8 ]; then
   if [ -e "/etc/php8/fpm/php-fpm.conf.default" ] ; then

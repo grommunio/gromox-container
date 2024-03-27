@@ -44,3 +44,5 @@ Please edit the variables in the `var.env` file to suit your deployment.
 
 * You need to run the pre-launch script `pre-launch.sh` to set up the docker volume and pre-populate it
   * The certificates are shared in the volume created by the `gromox-core` container. Please ensure you have the `gromox-core` container running before the other containers.
+
+* Grommunio-files will fail with self-signed certificates. Use Letsencrypt certificates instead.

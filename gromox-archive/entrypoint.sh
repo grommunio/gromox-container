@@ -68,7 +68,7 @@ systemctl start firewalld.service >>"${LOGFILE}" 2>&1
 systemctl restart saslauthd.service >>"${LOGFILE}" 2>&1
 
 cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
-chown gromox:gromox /etc/grommunio-common/ssl/*
+#chown gromox:gromox /etc/grommunio-common/ssl/*
 
 if [[ $INSTALLVALUE == *"archive"* ]] ; then
 
