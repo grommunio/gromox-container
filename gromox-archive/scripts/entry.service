@@ -1,6 +1,5 @@
 [Unit]
 Description=Run Entrypoint Script Once after Systemd is Started.
-Requires=db.service
 
 [Service]
 Type=oneshot

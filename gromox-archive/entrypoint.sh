@@ -39,17 +39,6 @@ memory_check
 INSTALLVALUE="archive"
 
 X500="i$(printf "%llx" "$(date +%s)")"
-#Choose Install type, 0 for self signed, 2 to provide certificate and 3 for letsencrypt.
-#SSL_INSTALL_TYPE=0
-
-#SSL_COUNTRY="XX"
-#SSL_STATE="XX"
-#SSL_LOCALITY="X"
-#SSL_ORG="grommunio Appliance"
-#SSL_OU="IT"
-#SSL_EMAIL="admin@${DOMAIN}"
-#SSL_DAYS=30
-#SSL_PASS=grommunio
 
 . "/home/common/ssl_setup"
 RETCMD=1
@@ -58,6 +47,7 @@ if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
   if ! selfcert; then
   touch ssle
   fi
+fi
 
 writelog "Config stage: put php files into place"
 if [ -d /etc/php8 ]; then

@@ -41,7 +41,6 @@ memory_check
 INSTALLVALUE="files, office"
 
 X500="i$(printf "%llx" "$(date +%s)")"
-#Choose Install type, 0 for self signed, 2 to provide certificate and 3 for letsencrypt.
 
 . "/home/common/ssl_setup"
 RETCMD=1
@@ -49,6 +48,7 @@ if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
   clear
   if ! selfcert; then
   touch ssle
+  fi
 fi
 
 systemctl enable redis@grommunio.service nginx.service saslauthd.service php-fpm.service >>"${LOGFILE}" 2>&1 
