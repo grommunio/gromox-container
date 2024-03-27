@@ -133,11 +133,6 @@ services:
           - gromox-core
     env_file:
       - var.env
-    #healthcheck:
-    #  test: curl --fail -s http://localhost:8443/ || exit 1
-    #  interval: 45s
-    #  timeout: 10s
-    #  retries: 5
     depends_on:
       gromox-db:
         condition: service_healthy
