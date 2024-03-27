@@ -51,34 +51,13 @@ X500="i$(printf "%llx" "$(date +%s)")"
 #SSL_DAYS=30
 #SSL_PASS=grommunio
 
-#. "/home/common/ssl_setup"
-#mkdir /etc/grommunio-common/ssl
-#RETCMD=1
-#if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
-#  clear
-#  if ! selfcert; then
-#  touch ssle
-#  fi
-#elif [ "${SSL_INSTALL_TYPE}" = "2" ]; then
-#  choose_ssl_selfprovided
-#  fullca
-#  SSL_BUNDLE=/home/ssl/grommox.pem
-#  SSL_KEY=/home/ssl/grommox.pem
-#  while [ ${RETCMD} -ne 0 ]; do
-#    owncert
-#    RETCMD=$?
-#  done
-#elif [ "${SSL_INSTALL_TYPE}" = "3" ]; then
-#  choose_ssl_letsencrypt
-#  #this should containe the domain to signed by certbot
-#  SSL_DOMAINS=$FQDN
-
-  #This should contain the email
-#  SSL_EMAIL=email@$FQDN
-#  letsencrypt
-#fi
-
-#[ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
+. "/home/common/ssl_setup"
+RETCMD=1
+if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
+  clear
+  if ! selfcert; then
+  touch ssle
+  fi
 
 writelog "Config stage: put php files into place"
 if [ -d /etc/php8 ]; then
