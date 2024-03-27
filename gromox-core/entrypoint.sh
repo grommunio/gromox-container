@@ -38,21 +38,9 @@ memory_check
 
 # Set repository credentials directly
 # shellcheck source=common/repo
-#INSTALLVALUE="core, chat, files, office, archive"
 INSTALLVALUE="core, chat"
 
 X500="i$(printf "%llx" "$(date +%s)")"
-#Choose Install type, 0 for self signed, 2 to provide certificate and 3 for letsencrypt.
-SSL_INSTALL_TYPE=0
-
-SSL_COUNTRY="XX"
-SSL_STATE="XX"
-SSL_LOCALITY="X"
-SSL_ORG="grommunio Appliance"
-SSL_OU="IT"
-SSL_EMAIL="admin@${DOMAIN}"
-SSL_DAYS=30
-SSL_PASS=grommunio
 
 . "/home/common/ssl_setup"
 mkdir /etc/grommunio-common/ssl
@@ -63,16 +51,7 @@ if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
   touch ssle
   fi
 elif [ "${SSL_INSTALL_TYPE}" = "2" ]; then
-  choose_ssl_selfprovided
-  fullca
-  SSL_BUNDLE=/home/ssl/grommox.pem
-  SSL_KEY=/home/ssl/grommox.pem
-  while [ ${RETCMD} -ne 0 ]; do
-    owncert
-    RETCMD=$?
-  done
-elif [ "${SSL_INSTALL_TYPE}" = "3" ]; then
-  choose_ssl_letsencrypt
+  #choose_ssl_letsencrypt
   #this should containe the domain to signed by certbot
   SSL_DOMAINS=$FQDN
 
@@ -81,7 +60,7 @@ elif [ "${SSL_INSTALL_TYPE}" = "3" ]; then
   letsencrypt
 fi
 
-[ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
+#[ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
 
 # Configure config.json of admin-web
 cat > /etc/grommunio-admin-common/nginx.d/web-config.conf <<EOF
@@ -124,9 +103,7 @@ if [[ $INSTALLVALUE == *"chat"* ]] ; then
     MMCTL_LOCAL_SOCKET_PATH=/var/tmp/grommunio-chat_local.socket bin/grommunio-chat-ctl --local user create --email admin@localhost --username admin --password "${CHAT_ADMIN_PASS}" --system-admin >>"${LOGFILE}" 2>&1
   popd || return
 
-  if [ "${SSL_INSTALL_TYPE}" = "0" ] || [ "${SSL_INSTALL_TYPE}" = "1" ] ; then
-	generate_admin_chat_conf "/etc/grommunio-admin-api/conf.d/chat.yaml"
-  fi
+  generate_admin_chat_conf "/etc/grommunio-admin-api/conf.d/chat.yaml"
 
   chmod 640 ${CHAT_CONFIG}
   jq '.chatWebAddress |= "https://'${FQDN}'/chat"' /tmp/config.json > /tmp/config-new.json
@@ -291,7 +268,7 @@ location ^~ /files {
 }
 EOF
 
-  jq '.filesWebAddress |= "https://'${FQDN}'/files"' /tmp/config.json > /tmp/config-new.json
+  jq '.fileWebAddress |= "https://'${FQDN}'/files"' /tmp/config.json > /tmp/config-new.json
   mv /tmp/config-new.json /tmp/config.json
 fi
 

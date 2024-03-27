@@ -82,7 +82,7 @@ generate_admin_chat_conf(){
   FILENAME=$1
 
   declare -A INPUTS=(
-   [url]=$CHAT_URL
+   [url]=$FQDN
    [password]=$CHAT_ADMIN_PASS
   )
 

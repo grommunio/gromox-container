@@ -117,11 +117,14 @@ services:
       - SYS_RESOURCE
     volumes:
       - opensuse-data:/data
+      - variables_data:/home/vars
+      - cert_data:/etc/grommunio-common/ssl
     ports:
       - "2222:22"  # SSH
       - "8443:8443" # Grommunio Admin
       - "443:443" # Grommunio Web
       - "993:993" # Grommunio IMAP
+      - "80:80" # Letsencrypt challenges mainly
     tty: true
     stdin_open: true
     networks:
@@ -153,6 +156,8 @@ services:
       - SYS_RESOURCE
     volumes:
       - opensuse-data:/data
+      - variables_data:/home/vars
+      - cert_data:/etc/grommunio-common/ssl
     tty: true
     stdin_open: true
     networks:
@@ -166,6 +171,8 @@ services:
         condition: service_healthy
       archive-db:
         condition: service_healthy
+      gromox-core:
+        condition: service_started
 
   gromox-office:
     build:
@@ -178,6 +185,8 @@ services:
       - SYS_RESOURCE
     volumes:
       - opensuse-data:/data
+      - variables_data:/home/vars
+      - cert_data:/etc/grommunio-common/ssl
     tty: true
     stdin_open: true
     networks:
@@ -193,6 +202,8 @@ services:
         condition: service_healthy
       office-db:
         condition: service_healthy
+      gromox-core:
+        condition: service_started
 
 networks:
   mynet:
@@ -218,3 +229,6 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/opensuse-data
+  variables_data:
+    external: true
+  cert_data:

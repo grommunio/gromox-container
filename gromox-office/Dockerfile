@@ -61,7 +61,6 @@ RUN    groupadd 'wheel' &&                         \
 COPY gromox-office/scripts /home/scripts
 COPY gromox-office/common /home/common
 COPY gromox-office/config /home/config
-COPY var.env /home/var.env
 
 COPY gromox-office/scripts/entry.service /etc/systemd/system/entry.service
 

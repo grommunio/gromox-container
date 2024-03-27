@@ -39,46 +39,15 @@ memory_check
 INSTALLVALUE="archive"
 
 X500="i$(printf "%llx" "$(date +%s)")"
-#Choose Install type, 0 for self signed, 2 to provide certificate and 3 for letsencrypt.
-SSL_INSTALL_TYPE=0
-
-SSL_COUNTRY="XX"
-SSL_STATE="XX"
-SSL_LOCALITY="X"
-SSL_ORG="grommunio Appliance"
-SSL_OU="IT"
-SSL_EMAIL="admin@${DOMAIN}"
-SSL_DAYS=30
-SSL_PASS=grommunio
 
 . "/home/common/ssl_setup"
-mkdir /etc/grommunio-common/ssl
 RETCMD=1
 if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
   clear
   if ! selfcert; then
   touch ssle
   fi
-elif [ "${SSL_INSTALL_TYPE}" = "2" ]; then
-  choose_ssl_selfprovided
-  fullca
-  SSL_BUNDLE=/home/ssl/grommox.pem
-  SSL_KEY=/home/ssl/grommox.pem
-  while [ ${RETCMD} -ne 0 ]; do
-    owncert
-    RETCMD=$?
-  done
-elif [ "${SSL_INSTALL_TYPE}" = "3" ]; then
-  choose_ssl_letsencrypt
-  #this should containe the domain to signed by certbot
-  SSL_DOMAINS=$FQDN
-
-  #This should contain the email
-  SSL_EMAIL=email@$FQDN
-  letsencrypt
 fi
-
-[ -e "/etc/grommunio-common/ssl" ] || mkdir -p "/etc/grommunio-common/ssl"
 
 writelog "Config stage: put php files into place"
 if [ -d /etc/php8 ]; then
@@ -99,7 +68,7 @@ systemctl start firewalld.service >>"${LOGFILE}" 2>&1
 systemctl restart saslauthd.service >>"${LOGFILE}" 2>&1
 
 cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
-chown gromox:gromox /etc/grommunio-common/ssl/*
+#chown gromox:gromox /etc/grommunio-common/ssl/*
 
 if [[ $INSTALLVALUE == *"archive"* ]] ; then
 

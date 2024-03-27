@@ -41,3 +41,8 @@ Please edit the variables in the `var.env` file to suit your deployment.
   cd /usr/share/grommunio-files
   sudo -u grofiles ./occ -q -n config:system:set trusted_domains 3 --value="<YOUR SERVER IP>" 
   ```
+
+* You need to run the pre-launch script `pre-launch.sh` to set up the docker volume and pre-populate it
+  * The certificates are shared in the volume created by the `gromox-core` container. Please ensure you have the `gromox-core` container running before the other containers.
+
+* Grommunio-files will fail with self-signed certificates. Use Letsencrypt certificates instead.

@@ -1,11 +1,10 @@
 [Unit]
 Description=Run Entrypoint Script Once after Systemd is Started.
-Requires=db.service
 
 [Service]
 Type=oneshot
 ExecStart=/home/entrypoint.sh
-EnvironmentFile=/home/var.env
+EnvironmentFile=/home/vars/var.env
 RemainAfterExit=true
 ExecStartPre=/bin/bash -c 'test -e /tmp/entry_script_executed || exit 0'
 ExecStartPost=/bin/touch /tmp/entry_script_executed
