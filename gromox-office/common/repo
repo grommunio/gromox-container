@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2021 grommunio GmbH
 
 setup_repo() {
-GROMMUNIO_REPO=openSUSE_Leap_15.5
+GROMMUNIO_REPO=openSUSE_Leap_15.6
 REPO_PATH="community"
 curl -Lsk "https://download.grommunio.com/RPM-GPG-KEY-grommunio" >/tmp/RPM-GPG-KEY-grommunio
 mkdir -p /etc/zypp/repos.d

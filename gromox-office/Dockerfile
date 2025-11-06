@@ -14,9 +14,9 @@
 # This will run systemd and prompt for a user login; you can set a default user/password
 # if needed.
 
-FROM opensuse/leap:15.5
+FROM opensuse/leap:15.6
 
-ARG GROMMUNIO_REPO=openSUSE_Leap_15.5
+ARG GROMMUNIO_REPO=openSUSE_Leap_15.6
 
 #
 # Systemd installation
