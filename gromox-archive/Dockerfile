@@ -52,6 +52,8 @@ RUN    systemctl unmask                                                  \
     # Prevent journald from reading kernel messages from /dev/kmsg
 
 RUN    echo "ReadKMsg=no" >> /etc/systemd/journald.conf                                                             
+# Switch default python3 version, as many dependencies are available only for python3.11
+RUN ln -nsf python3.11 /usr/bin/python3
                                                                 
     # Create default user if needed
 RUN    groupadd 'wheel' &&                         \
