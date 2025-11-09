@@ -14,9 +14,9 @@
 # This will run systemd and prompt for a user login; you can set a default user/password
 # if needed.
 
-FROM opensuse/leap:15.5
+FROM opensuse/leap:15.6
 
-ARG GROMMUNIO_REPO=openSUSE_Leap_15.5
+ARG GROMMUNIO_REPO=openSUSE_Leap_15.6
 
 #
 # Systemd installation
@@ -52,6 +52,8 @@ RUN    systemctl unmask                                                  \
     # Prevent journald from reading kernel messages from /dev/kmsg
 
 RUN    echo "ReadKMsg=no" >> /etc/systemd/journald.conf                                                             
+RUN    mkdir -p /etc/systemd/system/epmd.service.d && \
+   printf '[Service]\nLimitNPROC=5\n' > /etc/systemd/system/epmd.service.d/fixup.conf
                                                                 
     # Create default user if needed
     # useradd --create-home --shell /bin/bash your_username -G wheel && echo "your_username:your_password" | chpasswd
