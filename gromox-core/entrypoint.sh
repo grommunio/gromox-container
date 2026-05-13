@@ -204,7 +204,7 @@ postconf -e \
   virtual_alias_maps="mysql:/etc/postfix/grommunio-virtual-mailbox-alias-maps.cf" \
   recipient_bcc_maps="mysql:/etc/postfix/grommunio-bcc-forwards.cf" \
   unverified_recipient_reject_code=550 \
-  virtual_transport="smtp:[::1]:24" \
+  virtual_transport="smtp:[127.0.0.1]:24" \
   relayhost="${RELAYHOST}" \
   inet_interfaces=all \
   smtpd_helo_restrictions=permit_mynetworks,permit_sasl_authenticated,reject_invalid_hostname,reject_non_fqdn_hostname \
