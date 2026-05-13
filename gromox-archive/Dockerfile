@@ -27,13 +27,13 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 
 # Install grommunio packages (retry up to 3 times for transient download errors)
 RUN    zypper --non-interactive install -y vim mysql \
-         php8-mysql php8-cli php8-openssl php-fpm grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common \
+         php8-mysql php8-cli php8-openssl php-fpm php-gd grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common \
        || { echo "Retry 1..."; zypper clean -a; sleep 5; \
             zypper --non-interactive install -y vim mysql \
-              php8-mysql php8-cli php8-openssl php-fpm grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common; } \
+              php8-mysql php8-cli php8-openssl php-fpm php-gd grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common; } \
        || { echo "Retry 2..."; zypper clean -a; sleep 10; \
             zypper --non-interactive install -y vim mysql \
-              php8-mysql php8-cli php8-openssl php-fpm grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common; }
+              php8-mysql php8-cli php8-openssl php-fpm php-gd grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common; }
 
 # Switch default python3 version, as many dependencies are available only for python3.11
 RUN ln -nsf python3.11 /usr/bin/python3
