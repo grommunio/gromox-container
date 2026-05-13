@@ -237,6 +237,10 @@ postconf -P submission/inet/smtpd_sasl_auth_enable=yes
 postconf -P submission/inet/smtpd_relay_restrictions=permit_sasl_authenticated,reject
 postconf -P submission/inet/milter_macro_daemon_name=ORIGINATING
 
+# Compile lmdb maps shipped as plain-text by the postfix package
+postmap lmdb:/etc/postfix/relay
+postmap lmdb:/etc/postfix/relay_recipients
+
 if [[ $ENABLE_FILES = true ]] ; then
 
 cat > /usr/share/grommunio-common/nginx/locations.d/grommunio-files.conf <<EOF
