@@ -204,7 +204,7 @@ postconf -e \
   virtual_alias_maps="mysql:/etc/postfix/grommunio-virtual-mailbox-alias-maps.cf" \
   recipient_bcc_maps="mysql:/etc/postfix/grommunio-bcc-forwards.cf" \
   unverified_recipient_reject_code=550 \
-  virtual_transport="smtp:[::1]:24" \
+  virtual_transport="smtp:[127.0.0.1]:24" \
   relayhost="${RELAYHOST}" \
   inet_interfaces=all \
   smtpd_helo_restrictions=permit_mynetworks,permit_sasl_authenticated,reject_invalid_hostname,reject_non_fqdn_hostname \
@@ -236,6 +236,10 @@ postconf -P submission/inet/smtpd_tls_security_level=encrypt
 postconf -P submission/inet/smtpd_sasl_auth_enable=yes
 postconf -P submission/inet/smtpd_relay_restrictions=permit_sasl_authenticated,reject
 postconf -P submission/inet/milter_macro_daemon_name=ORIGINATING
+
+# Compile lmdb maps shipped as plain-text by the postfix package
+postmap lmdb:/etc/postfix/relay
+postmap lmdb:/etc/postfix/relay_recipients
 
 if [[ $ENABLE_FILES = true ]] ; then
 
