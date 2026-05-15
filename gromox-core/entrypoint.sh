@@ -178,6 +178,10 @@ chown gromox:gromox /etc/grommunio-common/ssl/*
 # Make the folder writable for grodav
 chown grodav:grodav /var/lib/grommunio-dav
 
+# Ensure gromox owns the user mailbox tree
+chown -R gromox:gromox /var/lib/gromox/user
+chmod -R 0770 /var/lib/gromox/user
+
 # Create gromox.cfg
 touch /etc/gromox/gromox.cfg
 setconf /etc/gromox/gromox.cfg imap_listen_tls true
