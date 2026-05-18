@@ -160,6 +160,7 @@ rspamadm pw -p "${ADMIN_PASS}" | sed -e 's#^#password = "#' -e 's#$#";#' > /etc/
 setconf /etc/gromox/http.cfg http_certificate_path "${SSL_BUNDLE_T}"
 setconf /etc/gromox/http.cfg http_private_key_path "${SSL_KEY_T}"
 
+setconf /etc/gromox/imap.cfg imap_support_starttls true
 setconf /etc/gromox/imap.cfg listen_port 143
 setconf /etc/gromox/imap.cfg listen_ssl_port 993
 setconf /etc/gromox/imap.cfg imap_certificate_path "${SSL_BUNDLE_T}"
@@ -184,7 +185,6 @@ chmod -R 0770 /var/lib/gromox/user
 
 # Create gromox.cfg
 touch /etc/gromox/gromox.cfg
-setconf /etc/gromox/gromox.cfg imap_listen_tls true
 
 # Domain and X500
 for SERVICE in http midb zcore imap pop3 smtp delivery ; do
