@@ -5,9 +5,9 @@
 # This image runs grommunio-core services using supervisord as PID 1,
 # eliminating the need for systemd, privileged mode, and sysbox runtime.
 
-FROM opensuse/leap:15.6
+FROM opensuse/leap:16.0
 
-ARG GROMMUNIO_REPO=openSUSE_Leap_15.6
+ARG GROMMUNIO_REPO=openSUSE_Leap_16.0
 
 RUN zypper -n install -y \
         iptables   \
@@ -18,7 +18,15 @@ RUN zypper -n install -y \
         patterns-base-base \
         procps  \
         sudo       \
-        cronie
+        cronie     \
+        bind-utils \
+        timezone   \
+        nano       \
+        lsof
+
+# Default timezone — can be overridden at runtime via the TIMEZONE env var in var.env
+RUN ln -sf /usr/share/zoneinfo/Europe/Vienna /etc/localtime && \
+    echo "Europe/Vienna" > /etc/timezone
 
 RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 	  rpm --import gr.key && \
@@ -42,16 +50,12 @@ RUN    zypper --non-interactive install -y vim mysql nginx \
               grommunio-common grommunio-web grommunio-sync grommunio-dav postfix postfix-mysql \
               grommunio-chat grommunio-keycloak grommunio-auth cyrus-sasl-saslauthd cyrus-sasl-plain jq redis; }
 
-# Install Certbot & dependencies (Python 3.11)
-RUN    zypper -n install -y python311 python311-pip libopenssl-devel && \
-        pip3.11 install --no-cache-dir certbot certbot-nginx && \
-        ln -sf /usr/local/bin/certbot /usr/bin/certbot
+# Install Certbot from openSUSE 16 packages + iconv modules (iso-2022-jp etc.)
+RUN    zypper -n install -y python313-certbot python313-certbot-nginx glibc-gconv-modules-extra
 
-# Switch default python3 version, as many dependencies are available only for python3.11
-RUN ln -nsf python3.11 /usr/bin/python3
-
-# Install supervisord
-RUN pip3.11 install --no-cache-dir supervisor
+# Install supervisord (Python 3.13 is the system default on openSUSE Leap 16)
+RUN zypper -n install -y python313-pip && \
+    pip3.13 install --no-cache-dir supervisor
 
 # Create default user if needed
 RUN    groupadd 'wheel' &&                         \

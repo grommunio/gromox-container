@@ -408,6 +408,8 @@ if [[ $ENABLE_KEYCLOAK = true ]] ; then
      .webOrigins = ["https://\($fqdn):443/"] |
      .attributes["post.logout.redirect.uris"] = "https://\($fqdn)/"' \
     /home/config/oidc-import.json > /etc/gromox/oidc-import.json
+else
+  rm -f /etc/gromox/keycloak.json /etc/gromox/oidc-import.json
 fi
 setup_done
 
