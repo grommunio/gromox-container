@@ -25,9 +25,9 @@ fullca()
     echo "Certificate generation was not successful. Check "${LOGFILE}"."
     return 1
   fi
-  return 0
   cp -f "${SSL_BUNDLE_T}" "/etc/pki/trust/anchors/"
   update-ca-certificates
+  return 0
 
 }
 
@@ -53,6 +53,8 @@ letsencrypt() {
 
       if [ "$existing_domains" = "$desired_domains" ]; then
           echo "Existing certificate for ${FQDN} covers all domains. Skipping Certbot."
+          cat "/etc/letsencrypt/live/${FQDN}/cert.pem" "/etc/letsencrypt/live/${FQDN}/fullchain.pem" > "${SSL_BUNDLE_T}"
+          cp -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" "${SSL_KEY_T}"
           return 0
       fi
   fi
@@ -66,8 +68,15 @@ letsencrypt() {
     --cert-name="${FQDN}" \
     -d "${SSL_DOMAINS}" \
     -m "${SSL_EMAIL}" >>"${LOGFILE}" 2>&1
+  CERTBOT_EXIT=$?
 
   [ -e "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" ] && mv "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" "/etc/nginx/conf.d/grommunio.conf"
+
+  if [ $CERTBOT_EXIT -ne 0 ] || [ ! -f "/etc/letsencrypt/live/${FQDN}/cert.pem" ]; then
+    echo "Certbot failed (exit code: ${CERTBOT_EXIT}), falling back to self-signed certificate." | tee -a "${LOGFILE}"
+    selfcert
+    return 0
+  fi
 
   cat "/etc/letsencrypt/live/${FQDN}/cert.pem" "/etc/letsencrypt/live/${FQDN}/fullchain.pem" > "${SSL_BUNDLE_T}"
   cp -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" "${SSL_KEY_T}"

@@ -41,7 +41,7 @@ volumes:
 
 services:
   gromox-db:
-    image: mariadb:10
+    image: mariadb:11
     container_name: gromox-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
