@@ -159,21 +159,21 @@ rspamadm pw -p "${ADMIN_PASS}" | sed -e 's#^#password = "#' -e 's#$#";#' > /etc/
 
 setconf /etc/gromox/http.cfg http_certificate_path "${SSL_BUNDLE_T}"
 setconf /etc/gromox/http.cfg http_private_key_path "${SSL_KEY_T}"
-setconf /etc/gromox/http.cfg tls_min_proto tls1.3
+setconf /etc/gromox/http.cfg tls_min_proto tls1.2
 
 setconf /etc/gromox/imap.cfg imap_support_starttls true
 setconf /etc/gromox/imap.cfg listen_port 143
 setconf /etc/gromox/imap.cfg listen_ssl_port 993
 setconf /etc/gromox/imap.cfg imap_certificate_path "${SSL_BUNDLE_T}"
 setconf /etc/gromox/imap.cfg imap_private_key_path "${SSL_KEY_T}"
-setconf /etc/gromox/imap.cfg tls_min_proto tls1.3
+setconf /etc/gromox/imap.cfg tls_min_proto tls1.2
 
 setconf /etc/gromox/pop3.cfg pop3_support_stls true
 setconf /etc/gromox/pop3.cfg listen_port 110
 setconf /etc/gromox/pop3.cfg listen_ssl_port 995
 setconf /etc/gromox/pop3.cfg pop3_certificate_path "${SSL_BUNDLE_T}"
 setconf /etc/gromox/pop3.cfg pop3_private_key_path "${SSL_KEY_T}"
-setconf /etc/gromox/pop3.cfg tls_min_proto tls1.3
+setconf /etc/gromox/pop3.cfg tls_min_proto tls1.2
 
 cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf
 ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf
@@ -228,7 +228,7 @@ postconf -e \
   smtpd_use_tls=yes \
   smtpd_tls_mandatory_protocols="!SSLv2,!SSLv3,!TLSv1,!TLSv1.1" \
   smtpd_tls_protocols="!SSLv2,!SSLv3,!TLSv1,!TLSv1.1" \
-  smtpd_tls_exclude_ciphers="aNULL,eNULL,EXP,MD5,RC4,DES,3DES,DHE,EDH,kDHE,kEDH,ADH,AECDH,kEECDH,kECDHE,ECDH" \
+  smtpd_tls_exclude_ciphers="aNULL,eNULL,EXP,MD5,RC4,DES,3DES,DHE,EDH,kDHE,kEDH,ADH" \
   smtpd_tls_eecdh_grade=strong \
   tls_preempt_cipherlist=yes \
   tls_random_source=dev:/dev/urandom \
@@ -247,7 +247,7 @@ postconf -P submission/inet/syslog_name="postfix/submission"
 postconf -P submission/inet/smtpd_tls_security_level=encrypt
 postconf -P submission/inet/smtpd_tls_mandatory_protocols="!SSLv2,!SSLv3,!TLSv1,!TLSv1.1"
 postconf -P submission/inet/smtpd_tls_protocols="!SSLv2,!SSLv3,!TLSv1,!TLSv1.1"
-postconf -P submission/inet/smtpd_tls_exclude_ciphers="aNULL,eNULL,EXP,MD5,RC4,DES,3DES,DHE,EDH,kDHE,kEDH,ADH,AECDH,kEECDH,kECDHE,ECDH"
+postconf -P submission/inet/smtpd_tls_exclude_ciphers="aNULL,eNULL,EXP,MD5,RC4,DES,3DES,DHE,EDH,kDHE,kEDH,ADH"
 postconf -P submission/inet/smtpd_tls_eecdh_grade=strong
 postconf -P submission/inet/smtpd_sasl_auth_enable=yes
 postconf -P submission/inet/smtpd_relay_restrictions=permit_sasl_authenticated,reject
