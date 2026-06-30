@@ -1,6 +1,6 @@
 # Grommunio Containers
 
-Docker Compose deployment for [grommunio](https://grommunio.com/) groupware, based on openSUSE Leap 15.6 with supervisord as process manager.
+Docker Compose deployment for [grommunio](https://grommunio.com/) groupware, based on openSUSE Leap 16.0 with supervisord as process manager.
 
 > **Warning**: This is complex software with sane defaults. For production use, change all default passwords and review the configuration carefully.
 

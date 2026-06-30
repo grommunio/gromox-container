@@ -8,6 +8,12 @@ if [ -f /home/vars/var.env ]; then
   set +a
 fi
 
+# Apply timezone from var.env (TIMEZONE); falls back to the image default if unset/invalid
+if [ -n "${TIMEZONE}" ] && [ -f "/usr/share/zoneinfo/${TIMEZONE}" ]; then
+  ln -sf "/usr/share/zoneinfo/${TIMEZONE}" /etc/localtime
+  echo "${TIMEZONE}" > /etc/timezone
+fi
+
 # Use persistent marker directory (on shared /data volume)
 MARKER_DIR="/data/.setup-office"
 mkdir -p "${MARKER_DIR}"

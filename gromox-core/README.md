@@ -1,6 +1,6 @@
 # gromox-core Container
 
-Docker image for the core [grommunio](https://grommunio.com/) groupware services, based on openSUSE Leap 15.6 with supervisord.
+Docker image for the core [grommunio](https://grommunio.com/) groupware services, based on openSUSE Leap 16.0 with supervisord.
 
 ## Services
 
