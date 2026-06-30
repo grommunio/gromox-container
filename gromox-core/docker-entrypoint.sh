@@ -89,9 +89,26 @@ if [ -f "${CHAT_CONFIG}" ] && [ -f /etc/supervisor.d/grommunio-chat.conf ]; then
   sed -i 's/autostart=false/autostart=true/' /etc/supervisor.d/grommunio-chat.conf
 fi
 
-# Set up certbot cron if Let's Encrypt is enabled
+# Set up certbot renewal if Let's Encrypt is enabled
 if [ "${SSL_INSTALL_TYPE}" = "2" ]; then
-  echo "0 */12 * * * root certbot renew --quiet --deploy-hook 'supervisorctl restart nginx'" > /etc/cron.d/certbot-renew
+  # On an actual renewal, rebuild the concatenated bundle that nginx and the
+  # gromox http/imap/pop3 daemons read (certbot only refreshes the files under
+  # /etc/letsencrypt/live, not this bundle) and restart the TLS services.
+  # $RENEWED_LINEAGE is set by certbot to the renewed cert's live directory.
+  cat > /usr/local/bin/grommunio-cert-deploy <<'DEPLOY'
+#!/bin/bash
+[ -n "${RENEWED_LINEAGE}" ] || exit 0
+cat "${RENEWED_LINEAGE}/cert.pem" "${RENEWED_LINEAGE}/fullchain.pem" > /etc/grommunio-common/ssl/server-bundle.pem
+cp -f "${RENEWED_LINEAGE}/privkey.pem" /etc/grommunio-common/ssl/server.key
+chown gromox:gromox /etc/grommunio-common/ssl/* 2>/dev/null || true
+supervisorctl restart gromox-http gromox-imap gromox-pop3 2>/dev/null || true
+DEPLOY
+  chmod +x /usr/local/bin/grommunio-cert-deploy
+
+  # Renew on the published HTTP port (host :80 -> container :8080). nginx owns
+  # 8080, so free it only while a renewal actually runs: the pre/post hooks
+  # fire only when at least one certificate is due.
+  echo "0 */12 * * * root certbot renew --quiet --standalone --http-01-port 8080 --pre-hook 'supervisorctl stop nginx' --deploy-hook /usr/local/bin/grommunio-cert-deploy --post-hook 'supervisorctl start nginx'" > /etc/cron.d/certbot-renew
 fi
 
 exec /usr/local/bin/supervisord -n -c /etc/supervisord.conf

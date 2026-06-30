@@ -62,9 +62,12 @@ letsencrypt() {
   echo "No existing certificates found for ${FQDN}, running Certbot..."
   [ -e "/etc/nginx/conf.d/grommunio.conf" ] && mv "/etc/nginx/conf.d/grommunio.conf" "/etc/nginx/conf.d/grommunio.conf.grommunio-setup"
 
-  # nginx is not running during config phase, no need to stop it
+  # nginx is not running during config phase, so port 8080 is free.
+  # Host publishes :80 -> container :8080, so the ACME http-01 server must
+  # bind 8080 (not the certbot default of 80) to receive the challenge.
   certbot certonly -n --standalone --agree-tos \
     --preferred-challenges http \
+    --http-01-port 8080 \
     --cert-name="${FQDN}" \
     -d "${SSL_DOMAINS}" \
     -m "${SSL_EMAIL}" >>"${LOGFILE}" 2>&1
