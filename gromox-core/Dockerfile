@@ -70,6 +70,12 @@ RUN chmod +x /home/scripts/db.sh
 COPY gromox-core/entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
 
+# LDAP downsync automation (systemd timer). LDAP connections are configured
+# out-of-band via the admin API; this only automates the periodic downsync.
+COPY gromox-core/scripts/grommunio-ldap-sync.service /etc/systemd/system/grommunio-ldap-sync.service
+COPY gromox-core/scripts/grommunio-ldap-sync.timer /etc/systemd/system/grommunio-ldap-sync.timer
+RUN install -m 0755 /home/scripts/grommunio-ldap-sync /usr/local/sbin/grommunio-ldap-sync
+
 COPY gromox-core/docker-entrypoint.sh /home/docker-entrypoint.sh
 RUN chmod +x /home/docker-entrypoint.sh
 

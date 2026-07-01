@@ -1,0 +1,53 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Periodically downsync all organizations from their configured LDAP source.
+# LDAP connections themselves are configured out-of-band (via the admin API /
+# ldap.yaml); this only automates `grommunio-admin ldap downsync` per org.
+#set -e
+orgs=$(grommunio-admin domain query --format=csv orgID 2>/dev/null | \
+    uniq | sed '/^orgID/d;s/\r/ /g');
+_logger() { logger -p "$PRIO" -t grommunio-ldap-sync "$*" ; }
+if [ -n "$orgs" ]; then
+    for org in $orgs; do
+        orgname=$(grommunio-admin org query --filter ID="$org" name)
+        grommunio-admin ldap downsync --complete --organization "$org"
+        ret=$?
+        RUNCHECK=true
+        case "$ret" in
+            0)  PRIO=6; STATUS=SUCCESS;
+                NOTICE="OK"; RUNCHECK=false;;
+            1)  PRIO=4; STATUS=ERR_DECLINE;
+                NOTICE="User declined prompt";;
+            2)  PRIO=4; STATUS=ERR_USR_ABRT;
+                NOTICE="User aborted";;
+            3)  PRIO=4; STATUS=ERR_NO_LDAP;
+                NOTICE="LDAP not available";;
+            4)  PRIO=4; STATUS=ERR_GENERIC;
+                NOTICE="Something went wrong";;
+            5)  PRIO=4; STATUS=ERR_NO_USER;
+                NOTICE="LDAP User not found";;
+            6)  PRIO=4; STATUS=ERR_AMBIG;
+                NOTICE="Request was ambiguous";;
+            7)  PRIO=4; STATUS=ERR_DB;
+                NOTICE="Error occurred when communicating with the database";;
+            8)  PRIO=4; STATUS=ERR_CONFLICT;
+                NOTICE="Target DB user is associated with another LDAP object";;
+            9)  PRIO=4; STATUS=ERR_COMMIT;
+                NOTICE="Error during database commit";;
+            10) PRIO=4; STATUS=ERR_INVALID_DATA;
+                NOTICE="User data check failed";;
+            11) PRIO=4; STATUS=ERR_SETUP;
+                NOTICE="Error during user setup";;
+            12) PRIO=4; STATUS=ERR_PARTIAL;
+                NOTICE="Some user failed to synchronize";;
+            *)  PRIO=3; STATUS=ERR_UNKNOWN;
+                NOTICE="unknown return status";;
+        esac
+        logger -p "$PRIO" -t grommunio-ldap-sync \
+            "[${ret}:${STATUS}] orgID:${org} orgName:${orgname} - ${NOTICE}"
+        if $RUNCHECK; then
+            grommunio-admin ldap check --organization "$org" | \
+                logger -p "$PRIO" -t grommunio-ldap-sync
+        fi
+    done
+fi

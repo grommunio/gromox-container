@@ -423,6 +423,28 @@ if [[ $ENABLE_KEYCLOAK = true ]] ; then
 else
   rm -f /etc/gromox/keycloak.json /etc/gromox/oidc-import.json
 fi
+
+# grommunio LDAP downsync automation (systemd timer)
+# ENABLE_LDAP_SYNC=true|false  -> enable/disable the periodic sync
+# LDAP_SYNC_INTERVAL           -> systemd OnCalendar expression (default: every 15 min)
+#                                 e.g. "hourly", "*-*-* 02:00:00", "00/6:00"
+LDAP_SYNC_DROPIN="/etc/systemd/system/grommunio-ldap-sync.timer.d"
+if [[ $ENABLE_LDAP_SYNC = true ]] ; then
+  LDAP_SYNC_INTERVAL="${LDAP_SYNC_INTERVAL:-*:0/15}"
+  mkdir -p "${LDAP_SYNC_DROPIN}"
+  cat > "${LDAP_SYNC_DROPIN}/override.conf" <<EOF
+[Timer]
+OnCalendar=
+OnCalendar=${LDAP_SYNC_INTERVAL}
+EOF
+  systemctl daemon-reload
+  systemctl enable --now grommunio-ldap-sync.timer >>"${LOGFILE}" 2>&1
+else
+  systemctl disable --now grommunio-ldap-sync.timer >>"${LOGFILE}" 2>&1
+  rm -f "${LDAP_SYNC_DROPIN}/override.conf"
+  systemctl daemon-reload
+fi
+
 setup_done
 
 exit 0
