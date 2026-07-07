@@ -1,0 +1,256 @@
+# Default values for the grommunio chart.
+#
+# IMPORTANT: change every password below before deploying to production.
+# The defaults exist only so that `helm template` works out of the box.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  registry: ghcr.io
+  # Component images are published by .github/workflows/build-and-push.yml as
+  #   <registry>/<repository>-<component>:<tag>
+  # e.g. ghcr.io/firlevapz/gromox-container-gromox-core:latest
+  repository: firlevapz/gromox-container
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Secrets for pulling images from a private registry, e.g.
+#   imagePullSecrets:
+#     - name: ghcr-credentials
+imagePullSecrets: []
+
+# ── grommunio configuration (rendered into the var.env secret) ──────────────
+config:
+  # Fully qualified domain name users connect to (webmail, IMAP, SMTP, ...)
+  fqdn: "mail.example.com"
+  # Primary mail domain
+  domain: "example.com"
+  # Password for the grommunio "admin" user (Admin UI / webmail)
+  adminPass: "changeme-admin"
+  organization: "grommunio"
+  timezone: "Europe/Vienna"
+  # Optional SMTP relay host for outbound mail, e.g. "[smtp.example.net]:587"
+  relayhost: ""
+  # X.500 organization identifier. Leave empty to auto-generate on first
+  # start (persisted in the core-state volume).
+  x500: ""
+  # Drop and recreate the core database on setup. Leave false: with false the
+  # core database is only populated when it is empty.
+  clearDbs: false
+  # Re-run the setup scripts on every pod start. This MUST stay true on
+  # Kubernetes: the containers were designed for Docker where the container
+  # filesystem survives restarts. On Kubernetes every pod starts from a fresh
+  # image filesystem, so the (idempotent-by-marker) setup has to run again to
+  # regenerate nginx/postfix/php configuration. See the chart README.
+  forceReconfig: true
+  logfile: "/var/log/grommunio-setup.log"
+  # Extra key/value pairs appended verbatim to var.env
+  extraVars: {}
+
+# Use an existing secret containing a complete `var.env` key instead of the
+# chart-rendered one. When set, all values under `config`, `ssl`, `features`
+# and the database credentials are still used for Kubernetes resources, but
+# the containers read your var.env.
+existingVarEnvSecret: ""
+
+# ── TLS for grommunio itself (terminated inside the containers) ─────────────
+ssl:
+  # "0" = self-signed, "2" = Let's Encrypt (requires port 80 reachable from
+  # the internet through the external service)
+  installType: "0"
+  # Email for Let's Encrypt expiry notices; defaults to admin@<domain>
+  email: ""
+  country: "XX"
+  state: "XX"
+  locality: "X"
+  org: "grommunio Appliance"
+  ou: "IT"
+  days: 365
+  pass: "grommunio"
+
+# ── Optional grommunio components ────────────────────────────────────────────
+features:
+  chat:
+    # Deploys the chat database and configures grommunio-chat in gromox-core.
+    # NOTE: the upstream setup script drops and recreates the chat database on
+    # every setup run, i.e. on every gromox-core pod start. Chat message
+    # history is therefore NOT durable across pod restarts.
+    enabled: true
+    adminPass: "changeme-chat"
+  files:
+    # grommunio Files (runs inside the gromox-office pod)
+    enabled: true
+    adminPass: "changeme-files"
+  office:
+    # grommunio Office document server (gromox-office pod)
+    enabled: true
+  archive:
+    # Email archiving (gromox-archive pod)
+    enabled: true
+    indexerDeltaInterval: "10m"
+    indexerMainInterval: "24h"
+  keycloak:
+    enabled: false
+    realm: ""
+    url: ""
+    clientId: ""
+    clientSecret: ""
+
+# ── MariaDB databases ────────────────────────────────────────────────────────
+# One single-replica MariaDB StatefulSet is created per enabled component
+# (core always; chat/files/office/archive follow their feature flags).
+mariadb:
+  image:
+    repository: mariadb
+    tag: "11"
+    pullPolicy: IfNotPresent
+  # Root password shared by all database instances
+  rootPassword: "changeme-root"
+  persistence:
+    # Defaults to persistence.storageClass, then the cluster default
+    storageClass: ""
+    size: 8Gi
+  resources: {}
+  databases:
+    core:
+      database: grommunio
+      username: grommunio
+      password: "changeme-core-db"
+    chat:
+      database: grochat
+      username: grochat
+      password: "changeme-chat-db"
+    files:
+      database: grofiles
+      username: grofiles
+      password: "changeme-files-db"
+    office:
+      database: groffice
+      username: groffice
+      password: "changeme-office-db"
+    archive:
+      database: groarchive
+      username: groarchive
+      password: "changeme-archive-db"
+
+# ── Persistence ──────────────────────────────────────────────────────────────
+persistence:
+  # Default storage class for all chart-managed volumes (empty = cluster default)
+  storageClass: ""
+  # SSL certificates, written by gromox-core and read by gromox-archive and
+  # gromox-office. Needs ReadWriteMany when the pods can land on different
+  # nodes. On single-node clusters (k3s/minikube) ReadWriteOnce usually works.
+  certs:
+    size: 128Mi
+    accessModes:
+      - ReadWriteMany
+    storageClass: ""
+  # gromox-core state: /etc/gromox, admin API, antispam, DAV, webmail state,
+  # Let's Encrypt state (mounted via subPaths)
+  coreState:
+    size: 5Gi
+    accessModes:
+      - ReadWriteOnce
+    storageClass: ""
+  # Mailbox data (/var/lib/gromox)
+  coreMail:
+    size: 20Gi
+    accessModes:
+      - ReadWriteOnce
+    storageClass: ""
+
+# ── Workloads ────────────────────────────────────────────────────────────────
+core:
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Extra environment variables for the container
+  extraEnv: []
+  # First start initializes databases and generates certificates and can take
+  # several minutes; the startup probe allows up to 20 minutes by default.
+  startupProbe:
+    enabled: true
+    failureThreshold: 120
+    periodSeconds: 10
+  livenessProbe:
+    enabled: true
+  readinessProbe:
+    enabled: true
+
+archive:
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: []
+  startupProbe:
+    enabled: true
+    failureThreshold: 90
+    periodSeconds: 10
+
+office:
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: []
+  startupProbe:
+    enabled: true
+    failureThreshold: 90
+    periodSeconds: 10
+
+# Image used by wait-for-database / wait-for-certificates init containers
+initImage:
+  repository: busybox
+  tag: "1.36"
+  pullPolicy: IfNotPresent
+
+# ── Networking ───────────────────────────────────────────────────────────────
+# External entry point for mail and web traffic. Maps the well-known ports to
+# the unprivileged in-container ports, mirroring the docker-compose port map.
+externalService:
+  enabled: true
+  type: LoadBalancer
+  annotations: {}
+  labels: {}
+  loadBalancerIP: ""
+  loadBalancerClass: ""
+  # e.g. "Local" to preserve client source IPs (recommended for SPF/rspamd)
+  externalTrafficPolicy: ""
+  # Set a port to null to omit it from the service
+  ports:
+    smtp: 25
+    http: 80
+    https: 443
+    smtps: 465
+    submission: 587
+    imap: 143
+    imaps: 993
+    pop3: 110
+    pop3s: 995
+    admin: 8443
+
+# Optional Ingress for the web UI. grommunio terminates TLS itself, so the
+# ingress must talk HTTPS to the backend (see annotation example below) or
+# use TLS passthrough. Mail protocols cannot go through an Ingress; keep the
+# external service for them.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  #  nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+  #  nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  # Hostname; defaults to config.fqdn
+  host: ""
+  tls: []
+  #  - secretName: grommunio-tls
+  #    hosts:
+  #      - mail.example.com

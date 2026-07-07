@@ -1,0 +1,158 @@
+{{- $enabled := include "grommunio.enabledDatabases" . | fromJson }}
+{{- $dbEndpoints := list }}
+{{- range $key, $on := $enabled }}
+{{- if $on }}
+{{- $dbEndpoints = append $dbEndpoints (printf "%s:3306" (include "grommunio.dbHost" (dict "root" $ "key" $key))) }}
+{{- end }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "grommunio.fullname" . }}-core
+  labels:
+    {{- include "grommunio.labels" (dict "root" . "component" "core") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "grommunio.selectorLabels" (dict "root" . "component" "core") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grommunio.selectorLabels" (dict "root" . "component" "core") | nindent 8 }}
+        {{- with .Values.core.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/var-env: {{ include (print $.Template.BasePath "/var-env-secret.yaml") . | sha256sum }}
+        {{- with .Values.core.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-databases
+          image: "{{ .Values.initImage.repository }}:{{ .Values.initImage.tag }}"
+          imagePullPolicy: {{ .Values.initImage.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              {{- include "grommunio.waitForEndpoints" (dict "endpoints" $dbEndpoints) | nindent 14 }}
+      containers:
+        - name: gromox-core
+          image: {{ include "grommunio.image" (dict "root" . "component" "gromox-core") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.core.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: smtp
+              containerPort: 2525
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443
+            - name: smtps
+              containerPort: 2465
+            - name: submission
+              containerPort: 2587
+            - name: imap
+              containerPort: 2143
+            - name: imaps
+              containerPort: 2993
+            - name: pop3
+              containerPort: 2110
+            - name: pop3s
+              containerPort: 2995
+            - name: admin-http
+              containerPort: 9080
+            - name: admin-https
+              containerPort: 9443
+          {{- if .Values.core.startupProbe.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: {{ .Values.core.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.core.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.core.readinessProbe.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 10
+          {{- end }}
+          {{- if .Values.core.livenessProbe.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 30
+            failureThreshold: 5
+          {{- end }}
+          {{- with .Values.core.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: var-env
+              mountPath: /home/vars
+              readOnly: true
+            - name: certs
+              mountPath: /etc/grommunio-common/ssl
+            - name: mail
+              mountPath: /var/lib/gromox
+            - name: state
+              mountPath: /etc/gromox
+              subPath: gromox-config
+            - name: state
+              mountPath: /var/lib/grommunio-admin-api
+              subPath: admin-api
+            - name: state
+              mountPath: /var/lib/grommunio-antispam
+              subPath: antispam
+            - name: state
+              mountPath: /var/lib/grommunio-dav
+              subPath: dav
+            - name: state
+              mountPath: /var/lib/grommunio-web
+              subPath: web
+            - name: state
+              mountPath: /home/gromox-services
+              subPath: services
+            - name: state
+              mountPath: /etc/letsencrypt
+              subPath: letsencrypt
+            - name: state
+              mountPath: /data
+              subPath: data
+      volumes:
+        - name: var-env
+          secret:
+            secretName: {{ include "grommunio.varEnvSecretName" . }}
+        - name: certs
+          persistentVolumeClaim:
+            claimName: {{ include "grommunio.fullname" . }}-certs
+        - name: state
+          persistentVolumeClaim:
+            claimName: {{ include "grommunio.fullname" . }}-core-state
+        - name: mail
+          persistentVolumeClaim:
+            claimName: {{ include "grommunio.fullname" . }}-core-mail
+      {{- with .Values.core.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.core.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.core.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

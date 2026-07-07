@@ -1,0 +1,118 @@
+{{- $root := . }}
+{{- $enabled := include "grommunio.enabledDatabases" . | fromJson }}
+{{- range $key, $on := $enabled }}
+{{- if $on }}
+{{- $db := index $root.Values.mariadb.databases $key }}
+{{- $name := include "grommunio.dbHost" (dict "root" $root "key" $key) }}
+{{- $component := printf "db-%s" $key }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "grommunio.labels" (dict "root" $root "component" $component) | nindent 4 }}
+type: Opaque
+stringData:
+  mariadb-root-password: {{ $root.Values.mariadb.rootPassword | quote }}
+  mariadb-password: {{ $db.password | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "grommunio.labels" (dict "root" $root "component" $component) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" $root "component" $component) | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "grommunio.labels" (dict "root" $root "component" $component) | nindent 4 }}
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "grommunio.selectorLabels" (dict "root" $root "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grommunio.selectorLabels" (dict "root" $root "component" $component) | nindent 8 }}
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: mariadb
+          image: "{{ $root.Values.mariadb.image.repository }}:{{ $root.Values.mariadb.image.tag }}"
+          imagePullPolicy: {{ $root.Values.mariadb.image.pullPolicy }}
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}
+                  key: mariadb-root-password
+            - name: MARIADB_DATABASE
+              value: {{ $db.database | quote }}
+            - name: MARIADB_USER
+              value: {{ $db.username | quote }}
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}
+                  key: mariadb-password
+            # Required by the mariadb image's healthcheck.sh --connect
+            - name: MARIADB_AUTO_UPGRADE
+              value: "1"
+          ports:
+            - name: mysql
+              containerPort: 3306
+          startupProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          {{- with $root.Values.mariadb.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- $class := $root.Values.mariadb.persistence.storageClass | default $root.Values.persistence.storageClass }}
+        {{- if $class }}
+        storageClassName: {{ $class | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $root.Values.mariadb.persistence.size | quote }}
+{{- end }}
+{{- end }}

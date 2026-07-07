@@ -1,0 +1,28 @@
+grommunio has been deployed.
+
+The first start takes several minutes: databases are initialized, TLS
+certificates are generated and all services are configured. Watch progress:
+
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }} -w
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "grommunio.fullname" . }}-core
+
+{{- if .Values.externalService.enabled }}
+
+External access ({{ .Values.externalService.type }} service "{{ include "grommunio.fullname" . }}"):
+
+  kubectl -n {{ .Release.Namespace }} get svc {{ include "grommunio.fullname" . }}
+
+Point the DNS record for {{ .Values.config.fqdn }} at the external IP, then:
+
+  Webmail:   https://{{ .Values.config.fqdn }}
+  Admin UI:  https://{{ .Values.config.fqdn }}:8443   (user "admin", password from config.adminPass)
+  ActiveSync: https://{{ .Values.config.fqdn }}/Microsoft-Server-ActiveSync
+  CalDAV/CardDAV: https://{{ .Values.config.fqdn }}/dav
+{{- end }}
+
+Service status inside a pod:
+
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "grommunio.fullname" . }}-core -- supervisorctl status
+
+NOTE: make sure you changed all default passwords in the values before
+exposing this deployment to the internet.

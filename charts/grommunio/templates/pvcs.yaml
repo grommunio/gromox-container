@@ -1,0 +1,54 @@
+{{/*
+Chart-managed volumes. All carry "keep" annotations so that neither helm
+uninstall nor an ArgoCD prune deletes mailboxes or certificates.
+*/}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "grommunio.fullname" . }}-certs
+  labels:
+    {{- include "grommunio.labels" (dict "root" . "component" "certs") | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.certs.accessModes | nindent 4 }}
+  {{- include "grommunio.storageClass" (dict "root" . "claim" .Values.persistence.certs) | nindent 2 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.certs.size | quote }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "grommunio.fullname" . }}-core-state
+  labels:
+    {{- include "grommunio.labels" (dict "root" . "component" "core") | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.coreState.accessModes | nindent 4 }}
+  {{- include "grommunio.storageClass" (dict "root" . "claim" .Values.persistence.coreState) | nindent 2 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.coreState.size | quote }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "grommunio.fullname" . }}-core-mail
+  labels:
+    {{- include "grommunio.labels" (dict "root" . "component" "core") | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.coreMail.accessModes | nindent 4 }}
+  {{- include "grommunio.storageClass" (dict "root" . "claim" .Values.persistence.coreMail) | nindent 2 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.coreMail.size | quote }}

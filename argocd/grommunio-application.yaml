@@ -1,0 +1,88 @@
+# Example ArgoCD Application deploying grommunio from this repository's Helm
+# chart. Adjust repoURL/targetRevision, the destination, and the values (in
+# particular ALL passwords) before applying:
+#
+#   kubectl apply -n argocd -f argocd/grommunio-application.yaml
+#
+# Secrets note: the inline values below end up in the Application manifest.
+# For production, keep secret values out of git — e.g. reference a values
+# file from a private repo (multiple sources), use SealedSecrets/SOPS to
+# provide a pre-created var.env Secret and set existingVarEnvSecret, or use
+# the ArgoCD Vault plugin.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grommunio
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/firlevapz/gromox-container.git
+    targetRevision: master
+    path: charts/grommunio
+    helm:
+      releaseName: grommunio
+      valuesObject:
+        config:
+          fqdn: mail.example.com
+          domain: example.com
+          adminPass: changeme-admin
+          timezone: Europe/Vienna
+        ssl:
+          # "0" = self-signed, "2" = Let's Encrypt (port 80 must be reachable)
+          installType: "0"
+        mariadb:
+          rootPassword: changeme-root
+          databases:
+            core:
+              password: changeme-core-db
+            chat:
+              password: changeme-chat-db
+            files:
+              password: changeme-files-db
+            office:
+              password: changeme-office-db
+            archive:
+              password: changeme-archive-db
+        features:
+          chat:
+            enabled: true
+            adminPass: changeme-chat
+          files:
+            enabled: true
+            adminPass: changeme-files
+          office:
+            enabled: true
+          archive:
+            enabled: true
+        persistence:
+          # On single-node clusters without a ReadWriteMany StorageClass:
+          # certs:
+          #   accessModes: [ReadWriteOnce]
+          storageClass: ""
+        externalService:
+          type: LoadBalancer
+          # Preserves client source IPs (recommended for SPF/antispam)
+          externalTrafficPolicy: Local
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: grommunio
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # PVCs and StatefulSet volumeClaimTemplates are guarded against pruning
+      # by the chart; keep RespectIgnoreDifferences for safe self-healing.
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    # MariaDB StatefulSets: tolerate storage-class defaulting by the cluster
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[].spec.storageClassName
+        - .spec.volumeClaimTemplates[].apiVersion
+        - .spec.volumeClaimTemplates[].kind

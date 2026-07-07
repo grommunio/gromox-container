@@ -1,0 +1,138 @@
+{{- if .Values.features.archive.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "grommunio.fullname" . }}-archive
+  labels:
+    {{- include "grommunio.labels" (dict "root" . "component" "archive") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "grommunio.selectorLabels" (dict "root" . "component" "archive") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grommunio.selectorLabels" (dict "root" . "component" "archive") | nindent 8 }}
+        {{- with .Values.archive.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/var-env: {{ include (print $.Template.BasePath "/var-env-secret.yaml") . | sha256sum }}
+        {{- with .Values.archive.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-databases
+          image: "{{ .Values.initImage.repository }}:{{ .Values.initImage.tag }}"
+          imagePullPolicy: {{ .Values.initImage.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              {{- include "grommunio.waitForEndpoints" (dict "endpoints" (list (printf "%s:3306" (include "grommunio.dbHost" (dict "root" . "key" "archive"))))) | nindent 14 }}
+        # gromox-core generates the shared TLS certificate on first start
+        - name: wait-for-certificates
+          image: "{{ .Values.initImage.repository }}:{{ .Values.initImage.tag }}"
+          imagePullPolicy: {{ .Values.initImage.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              until [ -s /certs/server-bundle.pem ] && [ -s /certs/server.key ]; do
+                echo "waiting for TLS certificates from gromox-core"; sleep 5
+              done
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+      containers:
+        - name: gromox-archive
+          image: {{ include "grommunio.image" (dict "root" . "component" "gromox-archive") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.archive.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: https
+              containerPort: 8443
+            - name: archive-smtp
+              containerPort: 2693
+          {{- if .Values.archive.startupProbe.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: {{ .Values.archive.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.archive.startupProbe.failureThreshold }}
+          {{- end }}
+          readinessProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 30
+            failureThreshold: 5
+          {{- with .Values.archive.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: var-env
+              mountPath: /home/vars
+              readOnly: true
+            - name: certs
+              mountPath: /etc/grommunio-common/ssl
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: var-env
+          secret:
+            secretName: {{ include "grommunio.varEnvSecretName" . }}
+        - name: certs
+          persistentVolumeClaim:
+            claimName: {{ include "grommunio.fullname" . }}-certs
+        # Setup markers only; deliberately ephemeral so the setup re-runs on
+        # every pod start (Kubernetes pods start from a fresh filesystem).
+        - name: data
+          emptyDir: {}
+      {{- with .Values.archive.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.archive.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.archive.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "grommunio.fullname" . }}-archive
+  labels:
+    {{- include "grommunio.labels" (dict "root" . "component" "archive") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 8443
+      targetPort: https
+    - name: archive-smtp
+      port: 2693
+      targetPort: archive-smtp
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "archive") | nindent 4 }}
+{{- end }}

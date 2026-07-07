@@ -1,0 +1,69 @@
+{{/*
+Internal ClusterIP service for gromox-core (used by the ingress and for
+in-cluster access to the unprivileged container ports).
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "grommunio.fullname" . }}-core
+  labels:
+    {{- include "grommunio.labels" (dict "root" . "component" "core") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: https
+      port: 8443
+      targetPort: https
+    - name: admin-https
+      port: 9443
+      targetPort: admin-https
+    - name: smtp
+      port: 2525
+      targetPort: smtp
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "core") | nindent 4 }}
+{{- if .Values.externalService.enabled }}
+---
+{{/*
+External entry point mapping the well-known ports to the unprivileged
+in-container ports (same mapping as docker-compose.yml).
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "grommunio.fullname" . }}
+  labels:
+    {{- include "grommunio.labels" (dict "root" . "component" "core") | nindent 4 }}
+    {{- with .Values.externalService.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.externalService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.externalService.type }}
+  {{- with .Values.externalService.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- with .Values.externalService.loadBalancerClass }}
+  loadBalancerClass: {{ . }}
+  {{- end }}
+  {{- with .Values.externalService.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ . }}
+  {{- end }}
+  ports:
+    {{- $targets := dict "smtp" "smtp" "http" "http" "https" "https" "smtps" "smtps" "submission" "submission" "imap" "imap" "imaps" "imaps" "pop3" "pop3" "pop3s" "pop3s" "admin" "admin-https" }}
+    {{- range $name, $port := .Values.externalService.ports }}
+    {{- if $port }}
+    - name: {{ $name }}
+      port: {{ $port }}
+      targetPort: {{ index $targets $name }}
+    {{- end }}
+    {{- end }}
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "core") | nindent 4 }}
+{{- end }}

@@ -1,0 +1,23 @@
+apiVersion: v2
+name: grommunio
+description: >-
+  grommunio groupware (mail, calendar, contacts, ActiveSync, chat, files,
+  office, archive) packaged for Kubernetes. Deploys the gromox-core,
+  gromox-archive and gromox-office containers from this repository together
+  with the MariaDB databases they need.
+type: application
+version: 0.1.0
+appVersion: "latest"
+home: https://github.com/firlevapz/gromox-container
+sources:
+  - https://github.com/firlevapz/gromox-container
+  - https://github.com/grommunio
+keywords:
+  - grommunio
+  - gromox
+  - groupware
+  - mail
+  - activesync
+maintainers:
+  - name: firlevapz
+    url: https://github.com/firlevapz

@@ -434,6 +434,30 @@ docker exec gromox-core ss -tlnp
 
 All ports should be above 1024. Expected nginx ports: 8080, 8443 (web), 9080, 9443 (admin).
 
+## Kubernetes (Helm + ArgoCD)
+
+A Helm chart deploying this stack to Kubernetes lives in
+[`charts/grommunio/`](charts/grommunio/), including one MariaDB StatefulSet
+per component, a LoadBalancer service with the same port mapping as
+docker-compose, and optional web Ingress. It uses the images published to
+`ghcr.io` by this repository's CI.
+
+```bash
+helm install grommunio charts/grommunio \
+  --namespace grommunio --create-namespace \
+  --set config.fqdn=mail.example.com \
+  --set config.domain=example.com \
+  --set config.adminPass='S3curePassword!'
+```
+
+For GitOps deployments, an example ArgoCD `Application` manifest is provided
+in [`argocd/grommunio-application.yaml`](argocd/grommunio-application.yaml).
+
+See [`charts/grommunio/README.md`](charts/grommunio/README.md) for
+prerequisites (RWX storage for the shared certificate volume on multi-node
+clusters), all values, and important notes on how the Docker-oriented
+one-shot setup is adapted to Kubernetes pod lifecycles.
+
 ## Project Structure
 
 ```
@@ -442,6 +466,8 @@ All ports should be above 1024. Expected nginx ports: 8080, 8443 (web), 9080, 94
 ├── var.env                         # Environment configuration
 ├── pre-launch.sh                   # Volume setup helper
 ├── README.md                       # This file
+├── charts/grommunio/               # Helm chart for Kubernetes deployments
+├── argocd/                         # Example ArgoCD Application manifest
 ├── gromox-core/
 │   ├── Dockerfile                  # Core container image
 │   ├── docker-entrypoint.sh        # Startup: env → config → port remap → supervisord
