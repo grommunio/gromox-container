@@ -8,6 +8,4 @@ docker run --name populate-volume -d -v variables_data:/home/vars busybox sleep 
 
 docker cp var.env populate-volume:/home/vars
 
-docker stop populate-volume
-
-docker container prune -f
+docker rm -f populate-volume

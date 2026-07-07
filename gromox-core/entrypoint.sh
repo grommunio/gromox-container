@@ -40,10 +40,18 @@ memory_check
 # shellcheck source=common/repo
 INSTALLVALUE="core, chat"
 
-X500="i$(printf "%llx" "$(date +%s)")"
+X500_FILE="/etc/gromox/.x500_org"
+if [ -n "${X500}" ]; then
+  echo "${X500}" > "${X500_FILE}"
+elif [ -f "${X500_FILE}" ]; then
+  X500="$(cat "${X500_FILE}")"
+else
+  X500="i$(printf "%llx" "$(date +%s)")"
+  echo "${X500}" > "${X500_FILE}"
+fi
 
 . "/home/common/ssl_setup"
-mkdir /etc/grommunio-common/ssl
+mkdir -p /etc/grommunio-common/ssl
 RETCMD=1
 if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
   clear
@@ -53,10 +61,14 @@ if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
 elif [ "${SSL_INSTALL_TYPE}" = "2" ]; then
   #choose_ssl_letsencrypt
   #this should containe the domain to signed by certbot
-  SSL_DOMAINS=$FQDN
+  SSL_DOMAINS="$FQDN,autodiscover.$DOMAIN"
+
+if [ -n "$MAIL_DOMAINS" ]; then
+  SSL_DOMAINS="$SSL_DOMAINS,autodiscover.$DOMAIN,$MAIL_DOMAINS"
+fi
 
   #This should contain the email
-  SSL_EMAIL=email@$FQDN
+  SSL_EMAIL=admin@$FQDN
   letsencrypt
 fi
 
@@ -75,7 +87,6 @@ generate_admin_db_conf "/etc/grommunio-admin-api/conf.d/database.yaml"
 echo "{ \"mailWebAddress\": \"https://${FQDN}/web\", \"rspamdWebAddress\": \"https://${FQDN}:8443/antispam/\" }" | jq > /tmp/config.json
 
 if [[ $INSTALLVALUE == *"chat"* ]] ; then
-  systemctl stop grommunio-chat
 
     echo "drop database if exists ${CHAT_MYSQL_DB}; \
           create database ${CHAT_MYSQL_DB};" | mysql -h"${CHAT_MYSQL_HOST}" -u"${CHAT_MYSQL_USER}" -p"${CHAT_MYSQL_PASS}" "${CHAT_MYSQL_DB}" >/dev/null 2>&1
@@ -88,20 +99,25 @@ if [[ $INSTALLVALUE == *"chat"* ]] ; then
   touch "/var/log/grommunio-chat/mattermost.log"
   chown -R grochat:grochat "/etc/grommunio-chat/" "/usr/share/grommunio-chat/logs" "/usr/share/grommunio-chat/config" "/var/log/grommunio-chat" "/var/lib/grommunio-chat/"
   chmod 644 ${CHAT_CONFIG}
-  systemctl enable grommunio-chat
-  systemctl restart grommunio-chat
 
-  # wait for the grommunio-chat unix socket, sometimes a second restart required for bind (db population)
-  if ! [ -e "/var/tmp/grommunio-chat_local.socket" ] ; then
-    systemctl restart grommunio-chat
-    for n in $(seq 1 10) ; do
-      [ -e "/var/tmp/grommunio-chat_local.socket" ] && break
-      sleep 3
-    done
-  fi
+  # Temporarily start chat in background for admin user creation
+  su -s /bin/bash -c "/usr/bin/grommunio-chat --config ${CHAT_CONFIG}" grochat &
+  CHAT_PID=$!
+
+  # Wait for the grommunio-chat unix socket
+  for n in $(seq 1 20) ; do
+    [ -e "/var/tmp/grommunio-chat_local.socket" ] && break
+    sleep 3
+  done
+
   pushd /usr/share/grommunio-chat/ || return
     MMCTL_LOCAL_SOCKET_PATH=/var/tmp/grommunio-chat_local.socket bin/grommunio-chat-ctl --local user create --email admin@localhost --username admin --password "${CHAT_ADMIN_PASS}" --system-admin >>"${LOGFILE}" 2>&1
   popd || return
+
+  # Stop temporary chat instance
+  kill $CHAT_PID 2>/dev/null || true
+  wait $CHAT_PID 2>/dev/null || true
+  rm -f /var/tmp/grommunio-chat_local.socket
 
   generate_admin_chat_conf "/etc/grommunio-admin-api/conf.d/chat.yaml"
 
@@ -110,11 +126,6 @@ if [[ $INSTALLVALUE == *"chat"* ]] ; then
   mv /tmp/config-new.json /tmp/config.json
 
 fi
-
-systemctl enable redis@grommunio.service gromox-delivery.service gromox-event.service \
-  gromox-http.service gromox-imap.service gromox-midb.service gromox-pop3.service \
-  gromox-delivery-queue.service gromox-timer.service gromox-zcore.service grommunio-antispam.service \
-  php-fpm.service nginx.service grommunio-admin-api.service saslauthd.service mariadb >>"${LOGFILE}" 2>&1
 
 if [ -d /etc/php8 ]; then
   if [ -e "/etc/php8/fpm/php-fpm.conf.default" ] ; then
@@ -140,28 +151,6 @@ cp /home/config/smtp /etc/pam.d/smtp
 
 echo "# Do not delete this file unless you know what you do!" > /etc/grommunio-common/setup_done
 
-# Set up autodiscover
-cp /home/config/autodiscover.ini /etc/gromox/autodiscover.ini 
-
-setconf /etc/gromox/autodiscover.ini host ${MYSQL_HOST} 
-setconf /etc/gromox/autodiscover.ini username ${MYSQL_USER}
-setconf /etc/gromox/autodiscover.ini password ${MYSQL_PASS}
-setconf /etc/gromox/autodiscover.ini dbname ${MYSQL_DB}
-
-setconf /etc/gromox/autodiscover.ini organization ${ORGANIZATION}
-#setconf /etc/gromox/autodiscover.ini hostname ${FQDN}
-setconf /etc/gromox/autodiscover.ini mapihttp 1
-
-setconf /etc/gromox/autodiscover.ini timezone ${TIMEZONE}
-setconf /etc/gromox/autodiscover.ini /var/lib/gromox/user ${HTTP_PROXY_USER}
-setconf /etc/gromox/autodiscover.ini /var/lib/gromox/domain ${HTTP_PROXY_DOMAIN}
-
-# Set up http.cfg
-setconf /etc/gromox/http.cfg listen_port 10080
-setconf /etc/gromox/http.cfg http_support_ssl true
-setconf /etc/gromox/http.cfg listen_ssl_port 10443
-setconf /etc/gromox/http.cfg host_id ${FQDN}
-
 # Set Grommunio admin password
 grommunio-admin passwd --password "${ADMIN_PASS}" >>"${LOGFILE}" 2>&1
 
@@ -170,29 +159,41 @@ rspamadm pw -p "${ADMIN_PASS}" | sed -e 's#^#password = "#' -e 's#$#";#' > /etc/
 
 setconf /etc/gromox/http.cfg http_certificate_path "${SSL_BUNDLE_T}"
 setconf /etc/gromox/http.cfg http_private_key_path "${SSL_KEY_T}"
+setconf /etc/gromox/http.cfg tls_min_proto tls1.2
 
 setconf /etc/gromox/imap.cfg imap_support_starttls true
+setconf /etc/gromox/imap.cfg listen_port 143
 setconf /etc/gromox/imap.cfg listen_ssl_port 993
 setconf /etc/gromox/imap.cfg imap_certificate_path "${SSL_BUNDLE_T}"
 setconf /etc/gromox/imap.cfg imap_private_key_path "${SSL_KEY_T}"
+setconf /etc/gromox/imap.cfg tls_min_proto tls1.2
 
 setconf /etc/gromox/pop3.cfg pop3_support_stls true
+setconf /etc/gromox/pop3.cfg listen_port 110
 setconf /etc/gromox/pop3.cfg listen_ssl_port 995
 setconf /etc/gromox/pop3.cfg pop3_certificate_path "${SSL_BUNDLE_T}"
 setconf /etc/gromox/pop3.cfg pop3_private_key_path "${SSL_KEY_T}"
+setconf /etc/gromox/pop3.cfg tls_min_proto tls1.2
 
-cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
+cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf
 ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf
 chown gromox:gromox /etc/grommunio-common/ssl/*
 
 # Make the folder writable for grodav
 chown grodav:grodav /var/lib/grommunio-dav
 
+# Ensure gromox owns the user mailbox tree
+chown -R gromox:gromox /var/lib/gromox/user
+chmod -R 0770 /var/lib/gromox/user
+
+# Create gromox.cfg
+touch /etc/gromox/gromox.cfg
+
 # Domain and X500
 for SERVICE in http midb zcore imap pop3 smtp delivery ; do
   setconf /etc/gromox/${SERVICE}.cfg default_domain "${DOMAIN}"
 done
-for CFG in midb.cfg zcore.cfg exmdb_local.cfg exmdb_provider.cfg exchange_emsmdb.cfg exchange_nsp.cfg ; do
+for CFG in gromox.cfg autodiscover.cfg midb.cfg zcore.cfg exmdb_local.cfg exmdb_provider.cfg exchange_emsmdb.cfg exchange_nsp.cfg ; do
   setconf "/etc/gromox/${CFG}" x500_org_name "${X500}"
 done
 
@@ -210,7 +211,7 @@ postconf -e \
   virtual_alias_maps="mysql:/etc/postfix/grommunio-virtual-mailbox-alias-maps.cf" \
   recipient_bcc_maps="mysql:/etc/postfix/grommunio-bcc-forwards.cf" \
   unverified_recipient_reject_code=550 \
-  virtual_transport="smtp:[::1]:24" \
+  virtual_transport="smtp:[127.0.0.1]:24" \
   relayhost="${RELAYHOST}" \
   inet_interfaces=all \
   smtpd_helo_restrictions=permit_mynetworks,permit_sasl_authenticated,reject_invalid_hostname,reject_non_fqdn_hostname \
@@ -225,6 +226,11 @@ postconf -e \
   smtpd_tls_received_header=yes \
   smtpd_tls_session_cache_timeout=3600s \
   smtpd_use_tls=yes \
+  smtpd_tls_mandatory_protocols="!SSLv2,!SSLv3,!TLSv1,!TLSv1.1" \
+  smtpd_tls_protocols="!SSLv2,!SSLv3,!TLSv1,!TLSv1.1" \
+  smtpd_tls_exclude_ciphers="aNULL,eNULL,EXP,MD5,RC4,DES,3DES,DHE,EDH,kDHE,kEDH,ADH" \
+  smtpd_tls_eecdh_grade=strong \
+  tls_preempt_cipherlist=yes \
   tls_random_source=dev:/dev/urandom \
   smtpd_sasl_auth_enable=yes \
   broken_sasl_auth_clients=yes \
@@ -239,28 +245,23 @@ postconf -M tlsmgr/unix="tlsmgr unix - - n 1000? 1 tlsmgr"
 postconf -M submission/inet="submission inet n - n - - smtpd"
 postconf -P submission/inet/syslog_name="postfix/submission"
 postconf -P submission/inet/smtpd_tls_security_level=encrypt
+postconf -P submission/inet/smtpd_tls_mandatory_protocols="!SSLv2,!SSLv3,!TLSv1,!TLSv1.1"
+postconf -P submission/inet/smtpd_tls_protocols="!SSLv2,!SSLv3,!TLSv1,!TLSv1.1"
+postconf -P submission/inet/smtpd_tls_exclude_ciphers="aNULL,eNULL,EXP,MD5,RC4,DES,3DES,DHE,EDH,kDHE,kEDH,ADH"
+postconf -P submission/inet/smtpd_tls_eecdh_grade=strong
 postconf -P submission/inet/smtpd_sasl_auth_enable=yes
 postconf -P submission/inet/smtpd_relay_restrictions=permit_sasl_authenticated,reject
 postconf -P submission/inet/milter_macro_daemon_name=ORIGINATING
 
-systemctl enable postfix.service >>"${LOGFILE}" 2>&1
-systemctl restart postfix.service >>"${LOGFILE}" 2>&1
-
-systemctl enable firewalld.service grommunio-fetchmail.timer >>"${LOGFILE}" 2>&1
-systemctl start firewalld.service grommunio-fetchmail.timer >>"${LOGFILE}" 2>&1
-
-. "/home/scripts/firewall.sh"
-
-systemctl restart redis@grommunio.service nginx.service php-fpm.service gromox-delivery.service \
-  gromox-event.service gromox-http.service gromox-imap.service gromox-midb.service \
-  gromox-pop3.service gromox-delivery-queue.service gromox-timer.service gromox-zcore.service \
-  grommunio-admin-api.service saslauthd.service grommunio-antispam.service >>"${LOGFILE}" 2>&1
+# Compile lmdb maps shipped as plain-text by the postfix package
+postmap lmdb:/etc/postfix/relay
+postmap lmdb:/etc/postfix/relay_recipients
 
 if [[ $ENABLE_FILES = true ]] ; then
 
 cat > /usr/share/grommunio-common/nginx/locations.d/grommunio-files.conf <<EOF
 location ^~ /files {
-	proxy_pass https://${OFFICE_HOST}:443/files;
+	proxy_pass https://${OFFICE_HOST}:8443/files;
 	proxy_request_buffering off;
 	proxy_buffering off;
 	error_log /var/log/nginx/nginx-files-error.log;
@@ -279,7 +280,7 @@ location  /cache/ {
   rewrite /cache/(.*)$ /office/cache/\$1;
 }
 location  /office/ {
-  proxy_pass         https://${OFFICE_HOST}:443/office/;
+  proxy_pass         https://${OFFICE_HOST}:8443/office/;
   proxy_http_version 1.1;
   proxy_set_header Upgrade \$http_upgrade;
   proxy_set_header Connection \$proxy_connection;
@@ -305,7 +306,7 @@ if [[ $ENABLE_ARCHIVE = true ]] ; then
 # configuration file /usr/share/grommunio-common/nginx/upstreams.d/grommunio-archive.conf:
 cat >  /usr/share/grommunio-common/nginx/upstreams.d/grommunio-archive.conf <<EOF
 upstream gromoxarchive {
-	server ${ARCHIVE_HOST}:443;
+	server ${ARCHIVE_HOST}:8443;
 }
 EOF
 
@@ -368,10 +369,60 @@ EOF
 
 fi
 
+# Keycloak Configuration
+if [[ $ENABLE_KEYCLOAK = true ]] ; then
+  # Fetch bearer public key from Keycloak JWKS endpoint
+  JWKS_URL="${KEYCLOAK_URL}realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs"
+  JWKS_RESPONSE=$(curl -sf "${JWKS_URL}")
+  if [ -n "${JWKS_RESPONSE}" ]; then
+    echo "${JWKS_RESPONSE}" \
+      | jq -r '.keys[] | select(.alg=="RS256") | .x5c[0]' \
+      | base64 -d > /tmp/keycloak_cert.der
+    BEARER_PUBKEY=$(openssl x509 -inform DER -in /tmp/keycloak_cert.der -pubkey -noout 2>/dev/null)
+    rm -f /tmp/keycloak_cert.der
+  fi
+
+  if [ -z "${BEARER_PUBKEY}" ]; then
+    echo "WARNING: Could not fetch bearer public key from ${JWKS_URL}" >>"${LOGFILE}"
+  else
+    echo "${BEARER_PUBKEY}" > /etc/gromox/bearer_pubkey
+    chmod 644 /etc/gromox/bearer_pubkey
+  fi
+
+fi
+
 mv /tmp/config.json /etc/grommunio-admin-common/config.json
-systemctl stop grommunio-chat.service
-systemctl restart grommunio-admin-api.service nginx.service
-systemctl restart grommunio-chat.service
+
+if [[ $ENABLE_KEYCLOAK = true ]] ; then
+  PUBKEY_CLEAN=$(echo "${BEARER_PUBKEY}" | tr -d '\n')
+  jq -n \
+    --arg realm "${KEYCLOAK_REALM}" \
+    --arg url "${KEYCLOAK_URL}" \
+    --arg client "${KEYCLOAK_CLIENT_ID}" \
+    --arg secret "${KEYCLOAK_CLIENT_SECRET}" \
+    --arg pubkey "${PUBKEY_CLEAN}" \
+    '{
+      "realm": $realm,
+      "auth-server-url": $url,
+      "resource": $client,
+      "credentials": { "secret": $secret },
+      "confidential-port": 0,
+      "realm-public-key": $pubkey
+    }' > /etc/gromox/keycloak.json
+
+  jq --arg client "${KEYCLOAK_CLIENT_ID}" --arg fqdn "${FQDN}" \
+    '(.clientId, .name) = $client |
+     .description = "Client for \($client) SSO" |
+     .rootUrl = "https://\($fqdn):443/" |
+     .adminUrl = "https://\($fqdn):443/" |
+     .baseUrl = "https://\($fqdn):443/" |
+     .redirectUris = ["https://\($fqdn)/*", "https://\($fqdn)/web/*"] |
+     .webOrigins = ["https://\($fqdn):443/"] |
+     .attributes["post.logout.redirect.uris"] = "https://\($fqdn)/"' \
+    /home/config/oidc-import.json > /etc/gromox/oidc-import.json
+else
+  rm -f /etc/gromox/keycloak.json /etc/gromox/oidc-import.json
+fi
 setup_done
 
 exit 0

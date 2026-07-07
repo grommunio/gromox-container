@@ -25,9 +25,9 @@ fullca()
     echo "Certificate generation was not successful. Check "${LOGFILE}"."
     return 1
   fi
-  return 0
   cp -f "${SSL_BUNDLE_T}" "/etc/pki/trust/anchors/"
   update-ca-certificates
+  return 0
 
 }
 
@@ -46,32 +46,44 @@ owncert() {
 }
 
 letsencrypt() {
+  if [ -f "/etc/letsencrypt/live/${FQDN}/cert.pem" ] && [ -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" ]; then
+      existing_domains=$(openssl x509 -in /etc/letsencrypt/live/${FQDN}/fullchain.pem -noout -text | \
+                        grep -oP '(?<=DNS:)[^,]*' | sort | tr '\n' ',' | sed 's/,$//')
+      desired_domains=$(echo "${SSL_DOMAINS}" | tr ' ' ',' | sed 's/,$//')
 
-  systemctl start firewalld.service >>"${LOGFILE}" 2>&1
+      if [ "$existing_domains" = "$desired_domains" ]; then
+          echo "Existing certificate for ${FQDN} covers all domains. Skipping Certbot."
+          cat "/etc/letsencrypt/live/${FQDN}/cert.pem" "/etc/letsencrypt/live/${FQDN}/fullchain.pem" > "${SSL_BUNDLE_T}"
+          cp -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" "${SSL_KEY_T}"
+          return 0
+      fi
+  fi
 
-  {
-    firewall-cmd --add-port=80/tcp --zone=public --permanent
-    firewall-cmd --add-service=https --zone=public --permanent
-    firewall-cmd --reload
-  } >>"${LOGFILE}" 2>&1
-
+  echo "No existing certificates found for ${FQDN}, running Certbot..."
   [ -e "/etc/nginx/conf.d/grommunio.conf" ] && mv "/etc/nginx/conf.d/grommunio.conf" "/etc/nginx/conf.d/grommunio.conf.grommunio-setup"
 
-  systemctl stop nginx >>"${LOGFILE}" 2>&1
+  # nginx is not running during config phase, so port 8080 is free.
+  # Host publishes :80 -> container :8080, so the ACME http-01 server must
+  # bind 8080 (not the certbot default of 80) to receive the challenge.
   certbot certonly -n --standalone --agree-tos \
     --preferred-challenges http \
+    --http-01-port 8080 \
     --cert-name="${FQDN}" \
     -d "${SSL_DOMAINS}" \
     -m "${SSL_EMAIL}" >>"${LOGFILE}" 2>&1
+  CERTBOT_EXIT=$?
 
   [ -e "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" ] && mv "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" "/etc/nginx/conf.d/grommunio.conf"
+
+  if [ $CERTBOT_EXIT -ne 0 ] || [ ! -f "/etc/letsencrypt/live/${FQDN}/cert.pem" ]; then
+    echo "Certbot failed (exit code: ${CERTBOT_EXIT}), falling back to self-signed certificate." | tee -a "${LOGFILE}"
+    selfcert
+    return 0
+  fi
 
   cat "/etc/letsencrypt/live/${FQDN}/cert.pem" "/etc/letsencrypt/live/${FQDN}/fullchain.pem" > "${SSL_BUNDLE_T}"
   cp -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" "${SSL_KEY_T}"
 
-  {
-    systemctl enable grommunio-certbot-renew.timer
-    systemctl start grommunio-certbot-renew.timer
-  } >>"${LOGFILE}" 2>&1
+  # certbot renewal is handled via crontab in docker-entrypoint.sh
 
 }

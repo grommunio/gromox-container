@@ -51,13 +51,7 @@ if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
   fi
 fi
 
-systemctl enable redis@grommunio.service nginx.service saslauthd.service php-fpm.service >>"${LOGFILE}" 2>&1 
-
-systemctl enable firewalld.service >>"${LOGFILE}" 2>&1
-systemctl start firewalld.service >>"${LOGFILE}" 2>&1
-. "/home/scripts/firewall.sh"
-
-cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
+cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf
 #chown gromox:gromox /etc/grommunio-common/ssl/*
 
 if [ -d /etc/php8 ]; then
@@ -70,8 +64,6 @@ elif [ -d /etc/php7 ]; then
   fi
 fi
 
-systemctl restart redis@grommunio.service nginx.service saslauthd.service php-fpm.service >>"${LOGFILE}" 2>&1 
-
 if [[ $ENABLE_FILES = true ]] ; then
 
     echo "drop database if exists ${FILES_MYSQL_DB}; \
@@ -79,7 +71,7 @@ if [[ $ENABLE_FILES = true ]] ; then
 
     sed -i -e 's/memory_limit = 128M/memory_limit = 512M/' /etc/php8/cli/php.ini
 
-    cp /home/config/config.php /usr/share/grommunio-files/config/config.php 
+    cp /home/config/config.php /usr/share/grommunio-files/config/config.php
 
  pushd /usr/share/grommunio-files
     rm -rf data/admin >>"${LOGFILE}" 2>&1
@@ -109,10 +101,6 @@ if [[ $ENABLE_FILES = true ]] ; then
     sudo -u grofiles ./occ -q -n config:system:set mail_smtpport --value='25' >>"${LOGFILE}" 2>&1
   popd || return
 
-  systemctl enable grommunio-files-cron.service >>"${LOGFILE}" 2>&1
-  systemctl enable grommunio-files-cron.timer >>"${LOGFILE}" 2>&1
-  systemctl start grommunio-files-cron.timer >>"${LOGFILE}" 2>&1
-
 #  jq '.fileWebAddress |= "https://'${FQDN}'/files"' /tmp/config.json > /tmp/config-new.json
 #  mv /tmp/config-new.json /tmp/config.json
 fi
@@ -128,11 +116,22 @@ if [[ $ENABLE_OFFICE = true ]] ; then
   jq '.services.CoAuthoring.sql.dbHost |= "'${OFFICE_MYSQL_HOST}'" | .services.CoAuthoring.sql.dbName |= "'${OFFICE_MYSQL_DB}'" | .services.CoAuthoring.sql.dbUser |= "'${OFFICE_MYSQL_USER}'" | .services.CoAuthoring.sql.dbPass |= "'${OFFICE_MYSQL_PASS}'"' /etc/grommunio-office/default.json > /tmp/default.json
   mv /tmp/default.json /etc/grommunio-office/default.json
 
-  systemctl enable rabbitmq-server.service >>"${LOGFILE}" 2>&1
-  systemctl start rabbitmq-server.service >>"${LOGFILE}" 2>&1
-  systemctl start ds-themegen.service ds-fontgen.service  >>"${LOGFILE}" 2>&1
-  systemctl enable ds-converter.service ds-docservice.service >>"${LOGFILE}" 2>&1
-  systemctl start ds-converter.service ds-docservice.service >>"${LOGFILE}" 2>&1
+  # Run oneshot theme/font generators directly
+  LD_LIBRARY_PATH=/usr/libexec/grommunio-office/server/FileConverter/bin \
+    /usr/libexec/grommunio-office/server/tools/allthemesgen \
+    --converter-dir="/usr/libexec/grommunio-office/server/FileConverter/bin" \
+    --src="/usr/libexec/grommunio-office/sdkjs/slide/themes" \
+    --output="/usr/libexec/grommunio-office/sdkjs/common/Images" >>"${LOGFILE}" 2>&1 || true
+  LD_LIBRARY_PATH=/usr/libexec/grommunio-office/server/FileConverter/bin \
+    /usr/libexec/grommunio-office/server/tools/allfontsgen \
+    --input="/usr/share/fonts" \
+    --allfonts-web="/usr/libexec/grommunio-office/sdkjs/common/AllFonts.js" \
+    --allfonts="/usr/libexec/grommunio-office/server/FileConverter/bin/AllFonts.js" \
+    --images="/usr/libexec/grommunio-office/sdkjs/common/Images" \
+    --selection="/usr/libexec/grommunio-office/server/FileConverter/bin/font_selection.bin" \
+    --output-web="/usr/libexec/grommunio-office/fonts" \
+    --use-system=true >>"${LOGFILE}" 2>&1 || true
+
   pushd /usr/share/grommunio-files || return
     sudo -u grofiles ./occ -q -n config:system:set --type boolean --value="true" csrf.disabled
     sudo -u grofiles ./occ -q -n config:app:set onlyoffice DocumentServerUrl --value="https://${FQDN}/office/"

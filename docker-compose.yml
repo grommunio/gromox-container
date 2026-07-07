@@ -1,8 +1,47 @@
-version: '3'
-services:
+name: grommunio
 
+networks:
+  grommunio:
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+          gateway: 172.28.0.1
+        - subnet: "fd00:1::/64"
+          gateway: "fd00:1::1"
+
+volumes:
+  gromox_services:
+  cert_data:
+  gromox_mysql_data:
+  chat_mysql_data:
+  files_mysql_data:
+  office_mysql_data:
+  archive_mysql_data:
+  grommunio_admin_api:
+  grommunio_antispam:
+  grommunio_dav:
+  grommunio_web:
+  opensuse_data:
+  gromox:
+  gromox_config:
+  variables_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/variables_data
+  gromox_letsencrypt:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/gromox_letsencrypt
+
+services:
   gromox-db:
-    image: mariadb:10
+    image: mariadb:11
     container_name: gromox-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
@@ -17,13 +56,16 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    dns:
+      - 127.0.0.11
+      - 8.8.8.8
     networks:
-      mynet:
+      grommunio:
         aliases:
           - gromox-db
 
   chat-db:
-    image: mariadb:10
+    image: mariadb:11
     container_name: chat-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
@@ -38,13 +80,16 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    dns:
+      - 127.0.0.11
+      - 8.8.8.8
     networks:
-      mynet:
+      grommunio:
         aliases:
           - chat-db
-    
+
   files-db:
-    image: mariadb:10
+    image: mariadb:11
     container_name: files-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
@@ -59,13 +104,16 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    dns:
+      - 127.0.0.11
+      - 8.8.8.8
     networks:
-      mynet:
+      grommunio:
         aliases:
           - files-db
 
   office-db:
-    image: mariadb:10
+    image: mariadb:11
     container_name: office-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
@@ -80,13 +128,16 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    dns:
+      - 127.0.0.11
+      - 8.8.8.8
     networks:
-      mynet:
+      grommunio:
         aliases:
           - office-db
 
   archive-db:
-    image: mariadb:10
+    image: mariadb:11
     container_name: archive-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
@@ -101,8 +152,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    dns:
+      - 127.0.0.11
+      - 8.8.8.8
     networks:
-      mynet:
+      grommunio:
         aliases:
           - archive-db
 
@@ -110,25 +164,35 @@ services:
     build:
       context: ./
       dockerfile: ./gromox-core/Dockerfile
-    restart: unless-stopped
-    runtime: sysbox-runc
-    cap_add:
-      - SYS_ADMIN
-      - SYS_RESOURCE
+    restart: on-failure
     volumes:
-      - opensuse-data:/data
+      - opensuse_data:/data
       - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
+      - gromox_services:/home/gromox-services
+      - grommunio_admin_api:/var/lib/grommunio-admin-api
+      - grommunio_antispam:/var/lib/grommunio-antispam
+      - grommunio_dav:/var/lib/grommunio-dav
+      - grommunio_web:/var/lib/grommunio-web
+      - gromox:/var/lib/gromox
+      - gromox_config:/etc/gromox
+      - gromox_letsencrypt:/etc/letsencrypt
     ports:
-      - "2222:22"  # SSH
-      - "8443:8443" # Grommunio Admin
-      - "443:443" # Grommunio Web
-      - "993:993" # Grommunio IMAP
-      - "80:80" # Letsencrypt challenges mainly
-    tty: true
-    stdin_open: true
+      - "25:2525"    # SMTP
+      - "80:8080"    # HTTP / Letsencrypt challenges
+      - "443:8443"   # HTTPS / Grommunio Web
+      - "465:2465"   # SMTPS
+      - "993:2993"   # IMAPS
+      - "110:2110"   # POP3
+      - "143:2143"   # IMAP
+      - "587:2587"   # SMTP Submission
+      - "995:2995"   # POP3S
+      - "8443:9443"  # Grommunio Admin / HTTPS alternative
+    dns:
+      - 127.0.0.11
+      - 8.8.8.8
     networks:
-      mynet:
+      grommunio:
         aliases:
           - gromox-core
     env_file:
@@ -149,19 +213,19 @@ services:
     build:
       context: ./
       dockerfile: ./gromox-archive/Dockerfile
-    restart: unless-stopped
-    runtime: sysbox-runc
-    cap_add:
-      - SYS_ADMIN
-      - SYS_RESOURCE
+    restart: on-failure
     volumes:
-      - opensuse-data:/data
+      - opensuse_data:/data
       - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
-    tty: true
-    stdin_open: true
+    expose:
+      - "8443"   # HTTPS (nginx)
+      - "2693"   # Archive SMTP
+    dns:
+      - 127.0.0.11
+      - 8.8.8.8
     networks:
-      mynet:
+      grommunio:
         aliases:
           - gromox-archive
     env_file:
@@ -178,19 +242,16 @@ services:
     build:
       context: ./
       dockerfile: ./gromox-office/Dockerfile
-    restart: unless-stopped
-    runtime: sysbox-runc
-    cap_add:
-      - SYS_ADMIN
-      - SYS_RESOURCE
+    restart: on-failure
     volumes:
-      - opensuse-data:/data
+      - opensuse_data:/data
       - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
-    tty: true
-    stdin_open: true
+    dns:
+      - 127.0.0.11
+      - 8.8.8.8
     networks:
-      mynet:
+      grommunio:
         aliases:
           - gromox-office
     env_file:
@@ -204,31 +265,3 @@ services:
         condition: service_healthy
       gromox-core:
         condition: service_started
-
-networks:
-  mynet:
-    driver: bridge
-    enable_ipv6: true
-    ipam:
-      config:
-        -  subnet: 17.18.0.0/24
-           gateway: 17.18.0.1
-        - subnet: "2001:db8:1::/64"
-          gateway: "2001:db8:1::1"  # IPv6 gateway
-
-
-volumes:
-  gromox_mysql_data:
-  chat_mysql_data:
-  files_mysql_data:
-  office_mysql_data:
-  archive_mysql_data:
-  opensuse-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/opensuse-data
-  variables_data:
-    external: true
-  cert_data:

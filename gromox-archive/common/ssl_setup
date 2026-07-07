@@ -8,6 +8,21 @@ SSL_KEY_T="/etc/grommunio-common/ssl/server.key"
 selfcert()
 {
 
+  # gromox-core is the cert authority: it writes the shared bundle/key into the
+  # cert_data volume (self-signed or Let's Encrypt). docker-compose only gates us
+  # on core's container start (service_started), not on the cert being written,
+  # so wait for the shared bundle to actually appear before trusting it.
+  for i in $(seq 1 60); do
+    [ -s "${SSL_BUNDLE_T}" ] && [ -s "${SSL_KEY_T}" ] && break
+    echo "Waiting for shared certificate from gromox-core (attempt ${i}/60)..." >>"${LOGFILE}"
+    sleep 2
+  done
+
+  if [ ! -s "${SSL_BUNDLE_T}" ] || [ ! -s "${SSL_KEY_T}" ]; then
+    echo "Shared certificate not available from gromox-core after timeout." >>"${LOGFILE}"
+    return 1
+  fi
+
   cp -f "${SSL_BUNDLE_T}" "/etc/pki/trust/anchors/"
   update-ca-certificates
 

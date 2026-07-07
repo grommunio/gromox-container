@@ -38,7 +38,15 @@ memory_check
 # Set repository credentials directly
 INSTALLVALUE="archive"
 
-X500="i$(printf "%llx" "$(date +%s)")"
+X500_FILE="/etc/gromox/.x500_org"
+if [ -n "${X500}" ]; then
+  echo "${X500}" > "${X500_FILE}"
+elif [ -f "${X500_FILE}" ]; then
+  X500="$(cat "${X500_FILE}")"
+else
+  X500="i$(printf "%llx" "$(date +%s)")"
+  echo "${X500}" > "${X500_FILE}"
+fi
 
 . "/home/common/ssl_setup"
 RETCMD=1
@@ -60,14 +68,7 @@ elif [ -d /etc/php7 ]; then
   fi
 fi
 
-systemctl enable firewalld.service >>"${LOGFILE}" 2>&1
-systemctl start firewalld.service >>"${LOGFILE}" 2>&1
-
-. "/home/scripts/firewall.sh"
-
-systemctl restart saslauthd.service >>"${LOGFILE}" 2>&1
-
-cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf 
+cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf
 #chown gromox:gromox /etc/grommunio-common/ssl/*
 
 if [[ $INSTALLVALUE == *"archive"* ]] ; then
@@ -96,12 +97,7 @@ if [[ $INSTALLVALUE == *"archive"* ]] ; then
 
   < /dev/urandom head -c 56 > /etc/grommunio-archive/grommunio-archive.key
 
-  systemctl enable searchd.service grommunio-archive-smtp.service grommunio-archive.service >>"${LOGFILE}" 2>&1
-  systemctl restart searchd.service grommunio-archive-smtp.service grommunio-archive.service >>"${LOGFILE}" 2>&1
-
 fi
-systemctl enable nginx.service php-fpm.service >>"${LOGFILE}" 2>&1
-systemctl start nginx.service php-fpm.service >>"${LOGFILE}" 2>&1
 setup_done
 
 exit 0
