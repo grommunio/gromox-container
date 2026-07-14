@@ -19,6 +19,8 @@ volumes:
   files_mysql_data:
   office_mysql_data:
   archive_mysql_data:
+  archive_data:
+  archive_config:
   grommunio_admin_api:
   grommunio_antispam:
   grommunio_dav:
@@ -218,6 +220,8 @@ services:
       - opensuse_data:/data
       - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
+      - archive_data:/var/lib/grommunio-archive
+      - archive_config:/etc/grommunio-archive
     expose:
       - "8443"   # HTTPS (nginx)
       - "2693"   # Archive SMTP

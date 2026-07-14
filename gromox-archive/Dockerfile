@@ -36,13 +36,13 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 
 # Install grommunio packages (retry up to 3 times for transient download errors)
 RUN    zypper --non-interactive install -y vim mysql \
-         php8-mysql php8-cli php8-openssl php-fpm php-gd grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common \
+         php8-mysql php8-cli php8-openssl php-fpm php-gd grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common php8-iconv php8-ctype \
        || { echo "Retry 1..."; zypper clean -a; sleep 5; \
             zypper --non-interactive install -y vim mysql \
-              php8-mysql php8-cli php8-openssl php-fpm php-gd grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common; } \
+              php8-mysql php8-cli php8-openssl php-fpm php-gd grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common php8-iconv php8-ctype; } \
        || { echo "Retry 2..."; zypper clean -a; sleep 10; \
             zypper --non-interactive install -y vim mysql \
-              php8-mysql php8-cli php8-openssl php-fpm php-gd grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common; }
+              php8-mysql php8-cli php8-openssl php-fpm php-gd grommunio-archive sphinx nginx jq cyrus-sasl-saslauthd cyrus-sasl-plain grommunio-common php8-iconv php8-ctype; }
 
 # Install supervisord (Python 3.13 is the system default on openSUSE Leap 16)
 RUN zypper -n install -y python313-pip && \

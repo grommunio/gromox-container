@@ -37,17 +37,17 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 # Install grommunio packages (retry up to 3 times for transient download errors)
 RUN    zypper --non-interactive install -y vim mysql nginx \
          gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
-         grommunio-common grommunio-web grommunio-sync grommunio-dav postfix postfix-mysql \
+         grommunio-common grommunio-web grommunio-index grommunio-sync grommunio-dav postfix postfix-mysql \
          grommunio-chat grommunio-keycloak grommunio-auth cyrus-sasl-saslauthd cyrus-sasl-plain jq redis \
        || { echo "Retry 1..."; zypper clean -a; sleep 5; \
             zypper --non-interactive install -y vim mysql nginx \
               gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
-              grommunio-common grommunio-web grommunio-sync grommunio-dav postfix postfix-mysql \
+              grommunio-common grommunio-web grommunio-index grommunio-sync grommunio-dav postfix postfix-mysql \
               grommunio-chat grommunio-keycloak grommunio-auth cyrus-sasl-saslauthd cyrus-sasl-plain jq redis; } \
        || { echo "Retry 2..."; zypper clean -a; sleep 10; \
             zypper --non-interactive install -y vim mysql nginx \
               gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
-              grommunio-common grommunio-web grommunio-sync grommunio-dav postfix postfix-mysql \
+              grommunio-common grommunio-web grommunio-index grommunio-sync grommunio-dav postfix postfix-mysql \
               grommunio-chat grommunio-keycloak grommunio-auth cyrus-sasl-saslauthd cyrus-sasl-plain jq redis; }
 
 # Install Certbot from openSUSE 16 packages + iconv modules (iso-2022-jp etc.)

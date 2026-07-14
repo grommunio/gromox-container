@@ -122,7 +122,7 @@ if [[ $INSTALLVALUE == *"chat"* ]] ; then
   generate_admin_chat_conf "/etc/grommunio-admin-api/conf.d/chat.yaml"
 
   chmod 640 ${CHAT_CONFIG}
-  jq '.chatWebAddress |= "https://'${FQDN}'/chat"' /tmp/config.json > /tmp/config-new.json
+  jq '.chatWebAddress |= "https://'${FQDN}'/chat/"' /tmp/config.json > /tmp/config-new.json
   mv /tmp/config-new.json /tmp/config.json
 
 fi
@@ -269,7 +269,7 @@ location ^~ /files {
 }
 EOF
 
-  jq '.fileWebAddress |= "https://'${FQDN}'/files"' /tmp/config.json > /tmp/config-new.json
+  jq '.fileWebAddress |= "https://'${FQDN}'/files/"' /tmp/config.json > /tmp/config-new.json
   mv /tmp/config-new.json /tmp/config.json
 fi
 
@@ -364,7 +364,7 @@ location ^~ /view {
 	access_log /var/log/nginx/nginx-archive-access.log;
 }
 EOF
-  jq '.archiveWebAddress |= "https://'${FQDN}'/archive"' /tmp/config.json > /tmp/config-new.json
+  jq '.archiveWebAddress |= "https://'${FQDN}'/archive/"' /tmp/config.json > /tmp/config-new.json
   mv /tmp/config-new.json /tmp/config.json
 
 fi
@@ -443,6 +443,24 @@ else
   systemctl disable --now grommunio-ldap-sync.timer >>"${LOGFILE}" 2>&1
   rm -f "${LDAP_SYNC_DROPIN}/override.conf"
   systemctl daemon-reload
+fi
+
+# grommunio full-text search index automation (cron)
+# Webmail full-text search needs per-user SQLite indexes built by
+# grommunio-index. These only exist once the tool has run against provisioned
+# mailboxes, so we build them once here and then refresh via cron (crond runs
+# under supervisord). `grommunio-index -A -c` = all users, create/keep current.
+# ENABLE_INDEX=true|false  -> enable/disable the periodic refresh (default: true)
+# INDEX_SCHEDULE           -> cron expression for the interval (default: hourly)
+if [[ ${ENABLE_INDEX:-true} = true ]] ; then
+  INDEX_SCHEDULE="${INDEX_SCHEDULE:-0 * * * *}"
+  echo "${INDEX_SCHEDULE} root grommunio-index -A -c >> /var/log/grommunio-index.log 2>&1" \
+    > /etc/cron.d/grommunio-index
+  # Build the indexes right away so search works without waiting for the first
+  # cron tick.
+  grommunio-index -A -c >>"${LOGFILE}" 2>&1
+else
+  rm -f /etc/cron.d/grommunio-index
 fi
 
 setup_done
