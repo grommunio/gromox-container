@@ -19,7 +19,10 @@ volumes:
   files_mysql_data:
   office_mysql_data:
   archive_mysql_data:
+  archive_data:
+  archive_config:
   grommunio_admin_api:
+  grommunio_admin_license:
   grommunio_antispam:
   grommunio_dav:
   grommunio_web:
@@ -171,6 +174,7 @@ services:
       - cert_data:/etc/grommunio-common/ssl
       - gromox_services:/home/gromox-services
       - grommunio_admin_api:/var/lib/grommunio-admin-api
+      - grommunio_admin_license:/etc/grommunio-admin-common/license
       - grommunio_antispam:/var/lib/grommunio-antispam
       - grommunio_dav:/var/lib/grommunio-dav
       - grommunio_web:/var/lib/grommunio-web
@@ -218,6 +222,8 @@ services:
       - opensuse_data:/data
       - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
+      - archive_data:/var/lib/grommunio-archive
+      - archive_config:/etc/grommunio-archive
     expose:
       - "8443"   # HTTPS (nginx)
       - "2693"   # Archive SMTP

@@ -1,0 +1,17 @@
+[Unit]
+Description=Grommunio LDAP Sync
+
+[Service]
+ProtectSystem=full
+ProtectHome=true
+PrivateDevices=true
+ProtectHostname=true
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictRealtime=true
+Type=oneshot
+Environment=SYSTEMD=true
+ExecStart=/usr/local/sbin/grommunio-ldap-sync

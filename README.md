@@ -197,6 +197,7 @@ Document editing and file sync:
 | `ARCHIVE_MYSQL_USER` | MySQL user for Archive |
 | `ARCHIVE_MYSQL_PASS` | MySQL password for Archive |
 | `ARCHIVE_MYSQL_DB` | MySQL database for Archive |
+| `ARCHIVE_RETENTION_DAYS` | Mail retention in days (`default_retention_days` in `grommunio-archive.conf`). The daily housekeeping purges mail older than this. Only applies to newly archived mail. Default: `3650` (10 years) |
 | `ARCHIVE_INDEXER_DELTA_INTERVAL` | Sphinx delta indexer interval (sleep-compatible format, e.g. `600`, `10m`, `1h`). Default: `10m` |
 | `ARCHIVE_INDEXER_MAIN_INTERVAL` | Interval between daily housekeeping runs (main merge, attachments, purge, sign, stats, daily-report). Default: `24h` |
 

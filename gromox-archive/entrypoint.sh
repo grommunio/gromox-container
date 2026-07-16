@@ -87,6 +87,12 @@ if [[ $INSTALLVALUE == *"archive"* ]] ; then
   setconf /etc/grommunio-archive/grommunio-archive.conf mysqlhost "${ARCHIVE_MYSQL_HOST}" 0
   setconf /etc/grommunio-archive/grommunio-archive.conf listen_addr 0.0.0.0 0
 
+  # Enforce mail retention (in days; default 10 years). piler stamps the retention
+  # value onto each mail at store time, so this only affects newly archived mail —
+  # it does not extend or shorten the retention of mail already in the archive.
+  ARCHIVE_RETENTION_DAYS="${ARCHIVE_RETENTION_DAYS:-3650}"
+  setconf /etc/grommunio-archive/grommunio-archive.conf default_retention_days "${ARCHIVE_RETENTION_DAYS}" 0
+
   php /etc/grommunio-archive/sphinx.conf.dist > /etc/sphinx/sphinx.conf
   sed -i -e "s/MYSQL_HOSTNAME/${ARCHIVE_MYSQL_HOST}/" -e "s/MYSQL_DATABASE/${ARCHIVE_MYSQL_DB}/" -e "s/MYSQL_PASSWORD/${ARCHIVE_MYSQL_PASS}/" -e "s/MYSQL_USERNAME/${ARCHIVE_MYSQL_USER}/" /etc/sphinx/sphinx.conf
   chown groarchive:sphinx /etc/sphinx/sphinx.conf

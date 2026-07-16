@@ -1,0 +1,11 @@
+[Unit]
+Description=Grommunio LDAP Sync
+
+[Timer]
+OnCalendar=00/3:05
+AccuracySec=5m
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

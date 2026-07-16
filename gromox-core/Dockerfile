@@ -37,17 +37,17 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 # Install grommunio packages (retry up to 3 times for transient download errors)
 RUN    zypper --non-interactive install -y vim mysql nginx \
          gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
-         grommunio-common grommunio-web grommunio-sync grommunio-dav postfix postfix-mysql \
+         grommunio-common grommunio-web grommunio-index grommunio-sync grommunio-dav postfix postfix-mysql \
          grommunio-chat grommunio-keycloak grommunio-auth cyrus-sasl-saslauthd cyrus-sasl-plain jq redis \
        || { echo "Retry 1..."; zypper clean -a; sleep 5; \
             zypper --non-interactive install -y vim mysql nginx \
               gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
-              grommunio-common grommunio-web grommunio-sync grommunio-dav postfix postfix-mysql \
+              grommunio-common grommunio-web grommunio-index grommunio-sync grommunio-dav postfix postfix-mysql \
               grommunio-chat grommunio-keycloak grommunio-auth cyrus-sasl-saslauthd cyrus-sasl-plain jq redis; } \
        || { echo "Retry 2..."; zypper clean -a; sleep 10; \
             zypper --non-interactive install -y vim mysql nginx \
               gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
-              grommunio-common grommunio-web grommunio-sync grommunio-dav postfix postfix-mysql \
+              grommunio-common grommunio-web grommunio-index grommunio-sync grommunio-dav postfix postfix-mysql \
               grommunio-chat grommunio-keycloak grommunio-auth cyrus-sasl-saslauthd cyrus-sasl-plain jq redis; }
 
 # Install Certbot from openSUSE 16 packages + iconv modules (iso-2022-jp etc.)
@@ -69,6 +69,12 @@ RUN chmod +x /home/scripts/db.sh
 
 COPY gromox-core/entrypoint.sh /home/entrypoint.sh
 RUN chmod +x /home/entrypoint.sh
+
+# LDAP downsync automation (systemd timer). LDAP connections are configured
+# out-of-band via the admin API; this only automates the periodic downsync.
+COPY gromox-core/scripts/grommunio-ldap-sync.service /etc/systemd/system/grommunio-ldap-sync.service
+COPY gromox-core/scripts/grommunio-ldap-sync.timer /etc/systemd/system/grommunio-ldap-sync.timer
+RUN install -m 0755 /home/scripts/grommunio-ldap-sync /usr/local/sbin/grommunio-ldap-sync
 
 COPY gromox-core/docker-entrypoint.sh /home/docker-entrypoint.sh
 RUN chmod +x /home/docker-entrypoint.sh
