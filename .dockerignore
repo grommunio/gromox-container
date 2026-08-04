@@ -1,0 +1,7 @@
+.git
+.gitignore
+gromox_letsencrypt
+variables_data
+backup
+var.local.env
+*.md
