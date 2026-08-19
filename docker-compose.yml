@@ -26,18 +26,16 @@ volumes:
   opensuse_data:
   gromox:
   gromox_config:
-  variables_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/variables_data
   gromox_letsencrypt:
     driver: local
     driver_opts:
       type: none
       o: bind
       device: ${PWD}/gromox_letsencrypt
+
+configs:
+  environment_variables:
+    file: var.env
 
 services:
   gromox-db:
@@ -165,9 +163,11 @@ services:
       context: ./
       dockerfile: ./gromox-core/Dockerfile
     restart: on-failure
+    configs:
+      - source: environment_variables
+        target: /home/vars/var.env
     volumes:
       - opensuse_data:/data
-      - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
       - gromox_services:/home/gromox-services
       - grommunio_admin_api:/var/lib/grommunio-admin-api
@@ -214,9 +214,11 @@ services:
       context: ./
       dockerfile: ./gromox-archive/Dockerfile
     restart: on-failure
+    configs:
+      - source: environment_variables
+        target: /home/vars/var.env
     volumes:
       - opensuse_data:/data
-      - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
     expose:
       - "8443"   # HTTPS (nginx)
@@ -243,9 +245,11 @@ services:
       context: ./
       dockerfile: ./gromox-office/Dockerfile
     restart: on-failure
+    configs:
+      - source: environment_variables
+        target: /home/vars/var.env
     volumes:
       - opensuse_data:/data
-      - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
     dns:
       - 127.0.0.11

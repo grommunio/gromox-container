@@ -40,20 +40,7 @@ cp var.env.example var.env   # or edit the existing var.env
 # Edit var.env with your domain, passwords, and feature flags
 ```
 
-### 2. Prepare volumes
-
-```bash
-mkdir -p variables_data gromox_letsencrypt
-cp var.env variables_data/var.env
-```
-
-Or use the pre-launch script:
-
-```bash
-./pre-launch.sh
-```
-
-### 3. Start services
+### 2. Start services
 
 ```bash
 docker compose up -d
@@ -61,7 +48,7 @@ docker compose up -d
 
 The first startup takes several minutes as each container initializes databases, generates certificates, and configures services.
 
-### 4. Access
+### 3. Access
 
 | Service | URL |
 |---------|-----|
@@ -246,7 +233,6 @@ The archive container exposes ports **8443** (nginx) and **2693** (archive SMTP)
 
 | Volume | Mount Point | Purpose |
 |--------|-------------|---------|
-| `variables_data` | `/home/vars` | Environment configuration (var.env) |
 | `cert_data` | `/etc/grommunio-common/ssl` | SSL certificates (shared across containers) |
 | `gromox_config` | `/etc/gromox` | Gromox service configuration files |
 | `gromox` | `/var/lib/gromox` | Gromox data (mailboxes) |
@@ -309,9 +295,10 @@ docker exec gromox-core tail -f /var/log/supervisor-nginx.log
 The setup scripts only run once (on first start). To re-run them after changing `var.env`:
 
 ```bash
-# Option 1: Set FORCE_RECONFIG in var.env and restart
-echo "FORCE_RECONFIG=true" >> variables_data/var.env
+# Option 1: Set FORCE_RECONFIG in var.env and restart. Remember to remove/reset value!
+echo "FORCE_RECONFIG=true" >> var.env
 docker compose restart gromox-core
+echo "Remember to remove 'FORCE_RECONFIG=true' from var.env"
 
 # Option 2: Delete marker files manually
 docker exec gromox-core rm -f /etc/gromox/.setup/entry_done /etc/gromox/.setup/db_done
