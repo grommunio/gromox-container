@@ -35,17 +35,24 @@ volumes:
 
 configs:
   environment_variables:
-    file: var.env
+    file: config/var.env
+  archive_db_vars:
+    file: config/archive_db.env
+  chat_db_vars:
+    file: config/chat_db.env
+  files_db_vars:
+    file: config/files_db.env
+  gromox_db_vars:
+    file: config/gromox_db.env
+  office_db_vars:
+    file: config/office_db.env
 
 services:
   gromox-db:
     image: mariadb:11
     container_name: gromox-db
-    environment:
-      MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
-      MARIADB_DATABASE: grommunio
-      MARIADB_USER: grommunio
-      MARIADB_PASSWORD: Lu3s3WmFxXghtLwJnuqN
+    env_file:
+      - config/gromox_db.env
     volumes:
       - gromox_mysql_data:/var/lib/mysql
     restart: on-failure
@@ -65,11 +72,8 @@ services:
   chat-db:
     image: mariadb:11
     container_name: chat-db
-    environment:
-      MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
-      MARIADB_DATABASE: grochat
-      MARIADB_USER: grochat
-      MARIADB_PASSWORD: grommunio
+    env_file:
+      - config/chat_db.env
     volumes:
       - chat_mysql_data:/var/lib/mysql
     restart: on-failure
@@ -89,11 +93,8 @@ services:
   files-db:
     image: mariadb:11
     container_name: files-db
-    environment:
-      MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
-      MARIADB_DATABASE: grofiles
-      MARIADB_USER: grofiles
-      MARIADB_PASSWORD: grommunio
+    env_file:
+      - config/files_db.env
     volumes:
       - files_mysql_data:/var/lib/mysql
     restart: on-failure
@@ -113,11 +114,8 @@ services:
   office-db:
     image: mariadb:11
     container_name: office-db
-    environment:
-      MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
-      MARIADB_DATABASE: groffice
-      MARIADB_USER: groffice
-      MARIADB_PASSWORD: grommunio
+    env_file:
+      - config/office_db.env
     volumes:
       - office_mysql_data:/var/lib/mysql
     restart: on-failure
@@ -137,11 +135,8 @@ services:
   archive-db:
     image: mariadb:11
     container_name: archive-db
-    environment:
-      MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
-      MARIADB_DATABASE: groarchive
-      MARIADB_USER: groarchive
-      MARIADB_PASSWORD: grommunio
+    env_file:
+      - config/archive_db.env
     volumes:
       - archive_mysql_data:/var/lib/mysql
     restart: on-failure
@@ -166,6 +161,10 @@ services:
     configs:
       - source: environment_variables
         target: /home/vars/var.env
+      - source: chat_db_vars
+        target: /home/vars/chat_db.env
+      - source: gromox_db_vars
+        target: /home/vars/gromox_db.env
     volumes:
       - opensuse_data:/data
       - cert_data:/etc/grommunio-common/ssl
@@ -196,7 +195,7 @@ services:
         aliases:
           - gromox-core
     env_file:
-      - var.env
+      - config/var.env
     depends_on:
       gromox-db:
         condition: service_healthy
@@ -217,6 +216,8 @@ services:
     configs:
       - source: environment_variables
         target: /home/vars/var.env
+      - source: archive_db_vars
+        target: /home/vars/archive_db.env
     volumes:
       - opensuse_data:/data
       - cert_data:/etc/grommunio-common/ssl
@@ -231,7 +232,7 @@ services:
         aliases:
           - gromox-archive
     env_file:
-      - var.env
+      - config/var.env
     depends_on:
       gromox-db:
         condition: service_healthy
@@ -248,6 +249,10 @@ services:
     configs:
       - source: environment_variables
         target: /home/vars/var.env
+      - source: files_db_vars
+        target: /home/vars/files_db.env
+      - source: office_db_vars
+        target: /home/vars/office_db.env
     volumes:
       - opensuse_data:/data
       - cert_data:/etc/grommunio-common/ssl
@@ -259,7 +264,7 @@ services:
         aliases:
           - gromox-office
     env_file:
-      - var.env
+      - config/var.env
     depends_on:
       gromox-db:
         condition: service_healthy
