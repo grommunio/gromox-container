@@ -65,9 +65,9 @@ elif [ -d /etc/php7 ]; then
 fi
 
 if [[ $ENABLE_FILES = true ]] ; then
-
-    echo "drop database if exists ${FILES_MYSQL_DB}; \
-          create database ${FILES_MYSQL_DB};" | mysql -h"${FILES_MYSQL_HOST}" -u"${FILES_MYSQL_USER}" -p"${FILES_MYSQL_PASS}" "${FILES_MYSQL_DB}" >/dev/null 2>&1
+    . /home/vars/files_db.env
+    echo "drop database if exists ${MARIADB_DATABASE}; \
+          create database ${MARIADB_DATABASE};" | mysql -h"${MARIADB_HOST}" -u"${MARIADB_HOST}" -p"${MARIADB_PASSWORD}" "${MARIADB_DATABASE}" >/dev/null 2>&1
 
     sed -i -e 's/memory_limit = 128M/memory_limit = 512M/' /etc/php8/cli/php.ini
 
@@ -75,7 +75,10 @@ if [[ $ENABLE_FILES = true ]] ; then
 
  pushd /usr/share/grommunio-files
     rm -rf data/admin >>"${LOGFILE}" 2>&1
-    sudo -u grofiles ./occ -q -n maintenance:install --database=mysql --database-host=${FILES_MYSQL_HOST} --database-name=${FILES_MYSQL_DB} --database-user=${FILES_MYSQL_USER} --database-pass=${FILES_MYSQL_PASS} --admin-user=admin --admin-pass="${FILES_ADMIN_PASS}" --data-dir=/var/lib/grommunio-files/data >>"${LOGFILE}" 2>&1
+
+    sudo -u grofiles ./occ -q -n maintenance:install --database=mysql --database-host=${MARIADB_HOST} --database-name=${MARIADB_DATABASE} --database-user=${MARIADB_HOST} --database-pass=${MARIADB_PASSWORD} --admin-user=admin --admin-pass="${FILES_ADMIN_PASS}" --data-dir=/var/lib/grommunio-files/data >>"${LOGFILE}" 2>&1
+    unset MARIADB_HOST MARIADB_ROOT_PASSWORD MARIADB_DATABASE MARIADB_USER MARIADB_PASSWORD
+
     sudo -u grofiles ./occ -q -n config:system:set trusted_domains 1 --value="${FQDN}" >>"${LOGFILE}" 2>&1
     sudo -u grofiles ./occ -q -n config:system:set trusted_domains 2 --value="${DOMAIN}" >>"${LOGFILE}" 2>&1
     sudo -u grofiles ./occ -q -n config:system:set trusted_domains 3 --value="mail.${DOMAIN}" >>"${LOGFILE}" 2>&1
@@ -106,14 +109,15 @@ if [[ $ENABLE_FILES = true ]] ; then
 fi
 
 if [[ $ENABLE_OFFICE = true ]] ; then
-
-    echo "drop database if exists ${OFFICE_MYSQL_DB}; \
-          create database ${OFFICE_MYSQL_DB};" | mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" >/dev/null 2>&1
+  . /home/vars/office_db.env
+    echo "drop database if exists ${MARIADB_DATABASE}; \
+          create database ${MARIADB_DATABASE};" | mysql -h"${MARIADB_HOST}" -u"${MARIADB_USER}" -p"${MARIADB_PASSWORD}" "${MARIADB_DATABASE}" >/dev/null 2>&1
 
   sed -i -e "/^CREATE DATABASE/d" -e "/^USE/d" /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
-  mysql -h"${OFFICE_MYSQL_HOST}" -u"${OFFICE_MYSQL_USER}" -p"${OFFICE_MYSQL_PASS}" "${OFFICE_MYSQL_DB}" < /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
+  mysql -h"${MARIADB_HOST}" -u"${MARIADB_USER}" -p"${MARIADB_PASSWORD}" "${MARIADB_DATABASE}" < /usr/libexec/grommunio-office/server/schema/mysql/createdb.sql
+  unset MARIADB_HOST MARIADB_ROOT_PASSWORD MARIADB_DATABASE MARIADB_USER MARIADB_PASSWORD
 
-  jq '.services.CoAuthoring.sql.dbHost |= "'${OFFICE_MYSQL_HOST}'" | .services.CoAuthoring.sql.dbName |= "'${OFFICE_MYSQL_DB}'" | .services.CoAuthoring.sql.dbUser |= "'${OFFICE_MYSQL_USER}'" | .services.CoAuthoring.sql.dbPass |= "'${OFFICE_MYSQL_PASS}'"' /etc/grommunio-office/default.json > /tmp/default.json
+  jq '.services.CoAuthoring.sql.dbHost |= "'${MARIADB_HOST}'" | .services.CoAuthoring.sql.dbName |= "'${MARIADB_DATABASE}'" | .services.CoAuthoring.sql.dbUser |= "'${MARIADB_USER}'" | .services.CoAuthoring.sql.dbPass |= "'${MARIADB_PASSWORD}'"' /etc/grommunio-office/default.json > /tmp/default.json
   mv /tmp/default.json /etc/grommunio-office/default.json
 
   # Run oneshot theme/font generators directly
