@@ -24,12 +24,14 @@ if [ "${FORCE_RECONFIG}" = "true" ]; then
 fi
 
 # Wait for database to be reachable
-echo "Waiting for database ${MYSQL_HOST}..."
+. /home/vars/gromox_db.env
+echo "Waiting for database ${MARIADB_HOST}..."
 for i in $(seq 1 30); do
-  mysql -u "${MYSQL_USER}" -h "${MYSQL_HOST}" -p"${MYSQL_PASS}" -e "SELECT 1" >/dev/null 2>&1 && break
+  mysql -u "${MARIADB_USER}" -h "${MARIADB_HOST}" -p"${MARIADB_PASSWORD}" -e "SELECT 1" >/dev/null 2>&1 && break
   echo "  attempt $i/30 - retrying in 2s..."
   sleep 2
 done
+unset MARIADB_HOST MARIADB_ROOT_PASSWORD MARIADB_DATABASE MARIADB_USER MARIADB_PASSWORD
 
 # Run DB initialization (once)
 if [ ! -f "${MARKER_DIR}/db_done" ]; then
