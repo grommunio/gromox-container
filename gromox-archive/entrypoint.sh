@@ -72,23 +72,26 @@ cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.con
 #chown gromox:gromox /etc/grommunio-common/ssl/*
 
 if [[ $INSTALLVALUE == *"archive"* ]] ; then
+	. /home/vars/archive_db.env
+    echo "drop database if exists ${MARIADB_DATABASE}; \
+          create database ${MARIADB_DATABASE};" | mysql -h"${MARIADB_HOST}" -u"${MARIADB_USER}" -p"${MARIADB_PASSWORD}" "${MARIADB_DATABASE}" >/dev/null 2>&1
 
-    echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
-          create database ${ARCHIVE_MYSQL_DB};" | mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" >/dev/null 2>&1
+  mysql -h"${MARIADB_HOST}" -u"${MARIADB_USER}" -p"${MARIADB_PASSWORD}" "${MARIADB_DATABASE}" < /usr/share/grommunio-archive/db-mysql.sql
 
-  mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" < /usr/share/grommunio-archive/db-mysql.sql
-
-  sed -e "s#MYHOSTNAME#${FQDN}#g" -e "s#MYSMTP#${DOMAIN}#g" -e "s/MYSQL_HOSTNAME/${ARCHIVE_MYSQL_HOST}/" -e "s/MYSQL_DATABASE/${ARCHIVE_MYSQL_DB}/" -e "s/MYSQL_PASSWORD/${ARCHIVE_MYSQL_PASS}/" -e "s/MYSQL_USERNAME/${ARCHIVE_MYSQL_USER}/" /etc/grommunio-archive/config-site.dist.php > /etc/grommunio-archive/config-site.php
+  sed -e "s#MYHOSTNAME#${FQDN}#g" -e "s#MYSMTP#${DOMAIN}#g" -e "s/MYSQL_HOSTNAME/${MARIADB_HOST}/" -e "s/MYSQL_DATABASE/${MARIADB_DATABASE}/" -e "s/MYSQL_PASSWORD/${MARIADB_PASSWORD}/" -e "s/MYSQL_USERNAME/${MARIADB_USER}/" /etc/grommunio-archive/config-site.dist.php > /etc/grommunio-archive/config-site.php
 
   mv /etc/grommunio-archive/grommunio-archive.conf.dist /etc/grommunio-archive/grommunio-archive.conf
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqluser "${ARCHIVE_MYSQL_USER}" 0
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqlpwd "${ARCHIVE_MYSQL_PASS}" 0
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqldb "${ARCHIVE_MYSQL_DB}" 0
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqlhost "${ARCHIVE_MYSQL_HOST}" 0
+  setconf /etc/grommunio-archive/grommunio-archive.conf mysqluser "${MARIADB_USER}" 0
+  setconf /etc/grommunio-archive/grommunio-archive.conf mysqlpwd "${MARIADB_PASSWORD}" 0
+  setconf /etc/grommunio-archive/grommunio-archive.conf mysqldb "${MARIADB_DATABASE}" 0
+  setconf /etc/grommunio-archive/grommunio-archive.conf mysqlhost "${MARIADB_HOST}" 0
   setconf /etc/grommunio-archive/grommunio-archive.conf listen_addr 0.0.0.0 0
 
   php /etc/grommunio-archive/sphinx.conf.dist > /etc/sphinx/sphinx.conf
-  sed -i -e "s/MYSQL_HOSTNAME/${ARCHIVE_MYSQL_HOST}/" -e "s/MYSQL_DATABASE/${ARCHIVE_MYSQL_DB}/" -e "s/MYSQL_PASSWORD/${ARCHIVE_MYSQL_PASS}/" -e "s/MYSQL_USERNAME/${ARCHIVE_MYSQL_USER}/" /etc/sphinx/sphinx.conf
+  sed -i -e "s/MYSQL_HOSTNAME/${MARIADB_HOST}/" -e "s/MYSQL_DATABASE/${MARIADB_DATABASE}/" -e "s/MYSQL_PASSWORD/${MARIADB_PASSWORD}/" -e "s/MYSQL_USERNAME/${MARIADB_USER}/" /etc/sphinx/sphinx.conf
+ 
+  unset MARIADB_HOST MARIADB_ROOT_PASSWORD MARIADB_DATABASE MARIADB_USER MARIADB_PASSWORD
+  
   chown groarchive:sphinx /etc/sphinx/sphinx.conf
   chmod 644 /etc/sphinx/sphinx.conf
   chown groarchive:sphinx /var/lib/grommunio-archive/sphinx/ -R
