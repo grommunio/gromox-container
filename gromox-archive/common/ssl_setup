@@ -5,25 +5,40 @@
 SSL_BUNDLE_T="/etc/grommunio-common/ssl/server-bundle.pem"
 SSL_KEY_T="/etc/grommunio-common/ssl/server.key"
 
-selfcert()
+# gromox-core is the certificate authority of the deployment: it writes the
+# shared bundle/key into the cert volume (self-signed or Let's Encrypt).
+# docker-compose only gates us on core's container start, not on the cert
+# being written, so wait for the shared bundle before anything uses it.
+wait_for_shared_cert()
 {
-
-  # gromox-core is the cert authority: it writes the shared bundle/key into the
-  # cert_data volume (self-signed or Let's Encrypt). docker-compose only gates us
-  # on core's container start (service_started), not on the cert being written,
-  # so wait for the shared bundle to actually appear before trusting it.
-  for i in $(seq 1 60); do
-    [ -s "${SSL_BUNDLE_T}" ] && [ -s "${SSL_KEY_T}" ] && break
-    echo "Waiting for shared certificate from gromox-core (attempt ${i}/60)..." >>"${LOGFILE}"
+  local i
+  for i in $(seq 1 300); do
+    if [ -s "${SSL_BUNDLE_T}" ] && [ -s "${SSL_KEY_T}" ]; then
+      return 0
+    fi
+    [ $((i % 15)) -eq 1 ] && echo "Waiting for shared certificate from gromox-core (${i}/300)..." | tee -a "${LOGFILE}"
     sleep 2
   done
+  echo "ERROR: shared certificate not available from gromox-core after timeout." | tee -a "${LOGFILE}"
+  return 1
+}
 
-  if [ ! -s "${SSL_BUNDLE_T}" ] || [ ! -s "${SSL_KEY_T}" ]; then
-    echo "Shared certificate not available from gromox-core after timeout." >>"${LOGFILE}"
-    return 1
+SSL_CA_CRT="/etc/grommunio-common/ssl/ca.pem"
+
+# Trust the deployment's built-in CA inside this container (SSL_INSTALL_TYPE=0:
+# Files/Archive talk to https://FQDN). Only CA certificates are exported into
+# the system bundle by update-ca-certificates.
+trust_shared_cert()
+{
+  local anchor=/etc/pki/trust/anchors/grommunio-ca.pem
+  if [ -s "${SSL_CA_CRT}" ]; then
+    if ! cmp -s "${SSL_CA_CRT}" "${anchor}" 2>/dev/null; then
+      cp -f "${SSL_CA_CRT}" "${anchor}"
+      rm -f /etc/pki/trust/anchors/server-bundle.pem
+      update-ca-certificates >/dev/null 2>&1 || true
+    fi
+  elif [ -e "${anchor}" ] || [ -e /etc/pki/trust/anchors/server-bundle.pem ]; then
+    rm -f "${anchor}" /etc/pki/trust/anchors/server-bundle.pem
+    update-ca-certificates >/dev/null 2>&1 || true
   fi
-
-  cp -f "${SSL_BUNDLE_T}" "/etc/pki/trust/anchors/"
-  update-ca-certificates
-
 }
