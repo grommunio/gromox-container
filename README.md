@@ -35,10 +35,9 @@ All service containers run unprivileged - no `privileged: true`, `SYS_ADMIN`, or
 
 ### 1. Configure environment
 
-```bash
-cp var.env.example var.env   # or edit the existing var.env
-# Edit var.env with your domain, passwords, and feature flags
-```
+Edit [`config/var.env`](config/var.env) with your domain, passwords, and feature flags.
+
+Change database passwords in every `config/*_db.env` file.
 
 ### 2. Start services
 
@@ -118,6 +117,17 @@ Document editing and file sync:
 
 ## Configuration
 
+### Database Variables (*_db.env)
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `MARIADB_HOST` | Host/address of database server | `gromox-db` |
+| `MARIADB_ROOT_PASSWORD` | Database root password. Needs to be changed for production! | `Lu3s3WmFxXghtLwJnuqN` |
+| `MARIADB_DATABASE` | Name of database | `grommunio` |
+| `MARIADB_USER` | Database user | `grommunio` |
+| `MARIADB_PASSWORD` | Password for database user . Needs to be changed for production! | `Lu3s3WmFxXghtLwJnuqN` |
+
+
 ### Environment Variables (var.env)
 
 #### Required
@@ -127,10 +137,6 @@ Document editing and file sync:
 | `FQDN` | Server fully qualified domain name | `mail.example.com` |
 | `DOMAIN` | Mail domain | `example.com` |
 | `ADMIN_PASS` | Admin password for grommunio | `SecurePassword123` |
-| `MYSQL_HOST` | MySQL host for gromox core | `gromox-db` |
-| `MYSQL_USER` | MySQL user for gromox | `grommunio` |
-| `MYSQL_PASS` | MySQL password | `ChangeMe` |
-| `MYSQL_DB` | MySQL database name | `grommunio` |
 
 #### SSL/TLS
 
@@ -145,10 +151,6 @@ Document editing and file sync:
 
 | Variable | Description |
 |----------|-------------|
-| `CHAT_MYSQL_HOST` | MySQL host for chat |
-| `CHAT_MYSQL_USER` | MySQL user for chat |
-| `CHAT_MYSQL_PASS` | MySQL password for chat |
-| `CHAT_MYSQL_DB` | MySQL database for chat |
 | `CHAT_ADMIN_PASS` | Chat admin password |
 | `CHAT_CONFIG` | Path to chat config (default: `/etc/grommunio-chat/config.json`) |
 
@@ -157,10 +159,6 @@ Document editing and file sync:
 | Variable | Description |
 |----------|-------------|
 | `ENABLE_FILES` | `true` to enable grommunio Files |
-| `FILES_MYSQL_HOST` | MySQL host for Files |
-| `FILES_MYSQL_USER` | MySQL user for Files |
-| `FILES_MYSQL_PASS` | MySQL password for Files |
-| `FILES_MYSQL_DB` | MySQL database for Files |
 | `FILES_ADMIN_PASS` | Files admin password |
 
 #### Office (optional)
@@ -169,10 +167,6 @@ Document editing and file sync:
 |----------|-------------|
 | `ENABLE_OFFICE` | `true` to enable grommunio Office |
 | `OFFICE_HOST` | Hostname of office container (default: `gromox-office`) |
-| `OFFICE_MYSQL_HOST` | MySQL host for Office |
-| `OFFICE_MYSQL_USER` | MySQL user for Office |
-| `OFFICE_MYSQL_PASS` | MySQL password for Office |
-| `OFFICE_MYSQL_DB` | MySQL database for Office |
 
 #### Archive (optional)
 
@@ -180,10 +174,6 @@ Document editing and file sync:
 |----------|-------------|
 | `ENABLE_ARCHIVE` | `true` to enable email archiving |
 | `ARCHIVE_HOST` | Hostname of archive container (default: `gromox-archive`) |
-| `ARCHIVE_MYSQL_HOST` | MySQL host for Archive |
-| `ARCHIVE_MYSQL_USER` | MySQL user for Archive |
-| `ARCHIVE_MYSQL_PASS` | MySQL password for Archive |
-| `ARCHIVE_MYSQL_DB` | MySQL database for Archive |
 | `ARCHIVE_INDEXER_DELTA_INTERVAL` | Sphinx delta indexer interval (sleep-compatible format, e.g. `600`, `10m`, `1h`). Default: `10m` |
 | `ARCHIVE_INDEXER_MAIN_INTERVAL` | Interval between daily housekeeping runs (main merge, attachments, purge, sign, stats, daily-report). Default: `24h` |
 
@@ -426,9 +416,14 @@ All ports should be above 1024. Expected nginx ports: 8080, 8443 (web), 9080, 94
 ```
 .
 ├── docker-compose.yml              # Service orchestration
-├── var.env                         # Environment configuration
-├── pre-launch.sh                   # Volume setup helper
 ├── README.md                       # This file
+├── config/
+│   ├── archive_db.env              # Database settings for archive db
+│   ├── chat_db.env                 # Database settings for chat db
+│   ├── files_db.env                # Database settings for files db
+│   ├── gromox_db.env               # Database settings for gromox db
+│   ├── office_db.env               # Database settings for office db
+│   ├── var.env                     # Other configuration as environment variable
 ├── gromox-core/
 │   ├── Dockerfile                  # Core container image
 │   ├── docker-entrypoint.sh        # Startup: env → config → port remap → supervisord
@@ -460,7 +455,7 @@ All ports should be above 1024. Expected nginx ports: 8080, 8443 (web), 9080, 94
 
 Each container follows this startup sequence:
 
-1. **docker-entrypoint.sh** starts, sources `var.env`
+1. **docker-entrypoint.sh** starts, sources `var.env` and required database `*_db.env`
 2. **db.sh** runs (core only) - initializes gromox database schema
 3. **entrypoint.sh** runs - configures all services (SSL, postfix, nginx, gromox, optional features)
 4. **Port remapping** - rewrites nginx/postfix/gromox configs to use high ports
