@@ -63,6 +63,11 @@ sed -i 's/\blisten\s\+8080\b/listen 9080/g; s/\blisten\s\+\[::]\:8080\b/listen [
 sed -i 's/\blisten\s\+8443\b/listen 9443/g; s/\blisten\s\+\[::]\:8443\b/listen [::]:9443/g' \
   /usr/share/grommunio-admin-common/nginx-ssl.conf
 
+# grommunio-web passwd plugin calls the admin API directly: follow the 8080 -> 9080 remap
+if [ -f /etc/grommunio-web/config-passwd.php ]; then
+  sed -i 's#:8080/api/v1/passwd#:9080/api/v1/passwd#' /etc/grommunio-web/config-passwd.php
+fi
+
 # Remap postfix to listen on high ports
 postconf -e "smtp_bind_address=" || true
 if [ -f /etc/postfix/master.cf ]; then
