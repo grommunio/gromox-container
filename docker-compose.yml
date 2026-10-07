@@ -28,21 +28,27 @@ volumes:
   grommunio_chat_config:
   grommunio_chat_data:
   postfix_spool:
+  redis_data:
   opensuse_data:
   gromox:
   gromox_config:
   files_data:
   office_data:
   archive_data:
-  archive_config:
 
 # Environment: var.env holds the defaults and is tracked in git. Put your own
 # values (domain, passwords, feature flags) into var.local.env (git-ignored);
 # it is read after var.env and overrides it. Both files are passed to the
 # containers with env_file, no bind mount or pre-launch step is required.
+# variables_data/var.env is the location older versions used; it is still read
+# so an existing deployment keeps its values (precedence: var.env <
+# variables_data/var.env < var.local.env). Values are parsed by Compose:
+# write a literal "$" as "$$" or single-quote the value.
 x-env: &grommunio-env
   - path: var.env
     required: true
+  - path: variables_data/var.env
+    required: false
   - path: var.local.env
     required: false
 
@@ -52,7 +58,7 @@ x-mariadb: &mariadb
   image: mariadb:11
   restart: unless-stopped
   healthcheck:
-    test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
+    test: ["CMD-SHELL", "mariadb --host=localhost --user=\"$${MARIADB_USER}\" --password=\"$${MARIADB_PASSWORD}\" -e 'SELECT 1;'"]
     interval: 30s
     timeout: 10s
     retries: 5
@@ -158,6 +164,7 @@ services:
       - grommunio_chat_config:/etc/grommunio-chat
       - grommunio_chat_data:/var/lib/grommunio-chat
       - postfix_spool:/var/spool/postfix
+      - redis_data:/var/lib/redis
       - gromox:/var/lib/gromox
       - gromox_config:/etc/gromox
       # Let's Encrypt account + certificates. Kept on the host so the state
@@ -207,7 +214,6 @@ services:
       - opensuse_data:/data
       - cert_data:/etc/grommunio-common/ssl
       - archive_data:/var/lib/grommunio-archive
-      - archive_config:/etc/grommunio-archive
     expose:
       - "8443"   # HTTPS (nginx)
       - "2693"   # Archive SMTP
