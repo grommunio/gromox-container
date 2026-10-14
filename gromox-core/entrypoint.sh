@@ -35,11 +35,7 @@ fi
 # ── TLS certificate (shared with archive/office via the cert volume) ─
 mkdir -p /etc/grommunio-common/ssl
 if [ "${SSL_INSTALL_TYPE}" = "2" ]; then
-  SSL_DOMAINS="${FQDN},autodiscover.${DOMAIN}"
-  if [ -n "${MAIL_DOMAINS}" ]; then
-    SSL_DOMAINS="${SSL_DOMAINS},${MAIL_DOMAINS}"
-  fi
-  SSL_EMAIL="${SSL_EMAIL:-admin@${DOMAIN}}"
+  le_setup_vars
   letsencrypt
 elif [ "${SSL_INSTALL_TYPE}" = "3" ]; then
   if ! owncert; then

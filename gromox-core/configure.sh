@@ -20,15 +20,24 @@ log() { echo "$(date '+%Y-%m-%d %H:%M:%S') configure: $*" | tee -a "${LOGFILE}";
 if [ "${SSL_INSTALL_TYPE}" = "3" ]; then
   # Own certificate provided by the operator: keep the shared copy current
   owncert >>"${LOGFILE}" 2>&1 || log "WARNING: SSL_INSTALL_TYPE=3 but SSL_BUNDLE/SSL_KEY are not readable"
+elif [ "${SSL_INSTALL_TYPE}" = "2" ] && [ -s "${SSL_BUNDLE_T}" ]; then
+  # A failed first certbot run (DNS, port 80) must not leave the built-in CA
+  # certificate forever: retry while no Let's Encrypt lineage exists (at most
+  # once per hour, to stay clear of the rate limits).
+  le_setup_vars
+  if [ ! -f "/etc/letsencrypt/live/${FQDN}/fullchain.pem" ] && le_retry_due; then
+    log "No Let's Encrypt certificate yet, retrying certbot"
+    letsencrypt
+  fi
 fi
 if [ -s "${SSL_BUNDLE_T}" ] && [ -s "${SSL_KEY_T}" ]; then
-  if [ "${SSL_INSTALL_TYPE}" = "0" ] && builtin_cert_expiring; then
-    log "Built-in certificate expires within 30 days, regenerating"
+  if [ "${SSL_INSTALL_TYPE}" = "0" ] && { [ ! -s "${SSL_CA_CRT}" ] || builtin_cert_expiring; }; then
+    log "Issuing the server certificate from the built-in CA"
     selfcert
   fi
   chown gromox:gromox "${SSL_BUNDLE_T}" "${SSL_KEY_T}" 2>/dev/null || true
   chmod 0644 "${SSL_BUNDLE_T}"
-  chmod 0640 "${SSL_KEY_T}"
+  chmod 0600 "${SSL_KEY_T}"
   # Make the built-in CA (SSL_INSTALL_TYPE=0) trusted inside the
   # container: admin-api -> chat, Files -> DAV etc. connect to the public FQDN.
   trust_shared_cert
@@ -96,7 +105,9 @@ cat > /etc/grommunio-common/nginx/locations.d/grommunio-files.conf <<EOF
 location ^~ /files {
 	set \$files_upstream https://${FILES_HOST:-${OFFICE_HOST}}:8443;
 	proxy_pass \$files_upstream;
-	proxy_set_header Host \$host;
+	# proxy_set_header in a location disables inheritance of the server-level headers
+	include /usr/share/grommunio-common/nginx/proxy_headers.conf;
+	proxy_set_header X-Forwarded-Proto https;
 	client_max_body_size 512M;
 	proxy_request_buffering off;
 	proxy_buffering off;
@@ -121,13 +132,12 @@ location  /office/ {
   proxy_http_version 1.1;
   client_max_body_size 512M;
   proxy_read_timeout 3600s;
-  proxy_set_header Host \$host;
+  include /usr/share/grommunio-common/nginx/proxy_headers.conf;
   proxy_set_header Upgrade \$http_upgrade;
   proxy_set_header Connection \$proxy_connection;
   # the office container's own nginx appends /office to the forwarded host
   proxy_set_header X-Forwarded-Host \$the_host;
   proxy_set_header X-Forwarded-Proto \$the_scheme;
-  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
   access_log /var/log/nginx/nginx-office-access.log;
   error_log /var/log/nginx/nginx-office-error.log;
 }
@@ -143,7 +153,8 @@ cat > /etc/grommunio-common/nginx/locations.d/grommunio-archive.conf <<EOF
 location ^~ /archive {
 	set \$archive_upstream https://${ARCHIVE_HOST}:8443;
 	proxy_pass \$archive_upstream;
-	proxy_set_header Host \$host;
+	include /usr/share/grommunio-common/nginx/proxy_headers.conf;
+	proxy_set_header X-Forwarded-Proto https;
 	client_max_body_size 512M;
 	proxy_request_buffering off;
 	proxy_buffering off;
@@ -232,6 +243,9 @@ touch /etc/gromox/gromox.cfg
 setconf /etc/gromox/gromox.cfg http_remote_host_hdr X-Real-IP
 # local delivery agent, fed by postfix via virtual_transport; loopback only
 setconf /etc/gromox/gromox.cfg lda_listen 127.0.0.1:24
+# mail composed in webmail/MAPI/EWS/ActiveSync enters postfix through smtpd
+# (milter, archive envelope) instead of the sendmail maildrop
+setconf /etc/gromox/gromox.cfg outgoing_smtp_url smtp://127.0.0.1:2525
 sed -i '/^listen_port[[:space:]]*=/d; /^listen_addr[[:space:]]*=/d' /etc/gromox/smtp.cfg 2>/dev/null
 
 setconf /etc/gromox/http.cfg listen_port 10080
@@ -271,10 +285,12 @@ chown -R gromox:gromox /var/lib/gromox/queue 2>/dev/null || true
 chown grodav:grodav /var/lib/grommunio-dav 2>/dev/null || true
 
 # ── Postfix ───────────────────────────────────────────────────────
-generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-domains.cf" "SELECT 1 FROM domains WHERE domain_status=0 AND domainname='%s'"
-generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-alias-maps.cf" "SELECT mainname FROM aliases WHERE aliasname='%s' UNION select destination FROM forwards WHERE username='%s' AND forward_type = 1"
-generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-maps.cf" "SELECT 1 FROM users WHERE username='%s'"
-generate_g_cf_files "/etc/postfix/grommunio-bcc-forwards.cf" "SELECT destination FROM forwards WHERE username='%s' AND forward_type = 0"
+# _utf8mb4 introducer + explicit collation: the gromox columns are ascii and
+# postfix sends utf8mb4 keys (same as grommunio-setup)
+generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-domains.cf" "SELECT 1 FROM domains WHERE domain_status=0 AND domainname=_utf8mb4'%s' COLLATE utf8mb4_general_ci"
+generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-alias-maps.cf" "SELECT mainname FROM aliases WHERE aliasname=_utf8mb4'%s' COLLATE utf8mb4_general_ci UNION SELECT destination FROM forwards WHERE username=_utf8mb4'%s' COLLATE utf8mb4_general_ci AND forward_type = 1"
+generate_g_cf_files "/etc/postfix/grommunio-virtual-mailbox-maps.cf" "SELECT 1 FROM users WHERE username=_utf8mb4'%s' COLLATE utf8mb4_general_ci"
+generate_g_cf_files "/etc/postfix/grommunio-bcc-forwards.cf" "SELECT destination FROM forwards WHERE username=_utf8mb4'%s' COLLATE utf8mb4_general_ci AND forward_type = 0"
 chown root:postfix /etc/postfix/grommunio-*.cf
 chmod 0640 /etc/postfix/grommunio-*.cf
 
@@ -380,7 +396,7 @@ if [ "${ENABLE_ARCHIVE}" = "true" ]; then
   postconf -e "always_bcc=archive@${FQDN}" \
               "smtp_header_checks=pcre:/etc/postfix/grommunio-archiver-strip.pcre"
   postconf -M archive/unix="archive unix - - n - - smtp"
-  postconf -P archive/unix/smtp_header_checks= archive/unix/syslog_name="postfix/archive"
+  postconf -P archive/unix/smtp_header_checks= archive/unix/syslog_name="postfix/archive" archive/unix/smtp_address_preference=ipv4
   echo "archive@${FQDN} archive:[${ARCHIVE_HOST}]:2693" > /etc/postfix/transport
   postmap lmdb:/etc/postfix/transport
   postconf -e "transport_maps=lmdb:/etc/postfix/transport"
@@ -450,8 +466,9 @@ if [ "${ENABLE_KEYCLOAK}" = "true" ] ; then
       "confidential-port": 0,
       "realm-public-key": $pubkey
     }' > /etc/gromox/keycloak.json
+  # read by grommunio-web (php-fpm pool runs as groweb)
   chmod 0640 /etc/gromox/keycloak.json
-  chgrp gromoxcf /etc/gromox/keycloak.json 2>/dev/null || true
+  chown root:groweb /etc/gromox/keycloak.json 2>/dev/null || true
 
   jq --arg client "${KEYCLOAK_CLIENT_ID}" --arg fqdn "${FQDN}" \
     '(.clientId, .name) = $client |
@@ -480,7 +497,7 @@ cp -f "${RENEWED_LINEAGE}/fullchain.pem" /etc/grommunio-common/ssl/server-bundle
 cp -f "${RENEWED_LINEAGE}/privkey.pem" /etc/grommunio-common/ssl/server.key
 chown gromox:gromox /etc/grommunio-common/ssl/server-bundle.pem /etc/grommunio-common/ssl/server.key 2>/dev/null || true
 chmod 0644 /etc/grommunio-common/ssl/server-bundle.pem
-chmod 0640 /etc/grommunio-common/ssl/server.key
+chmod 0600 /etc/grommunio-common/ssl/server.key
 /usr/local/bin/supervisorctl restart gromox-http gromox-imap gromox-pop3 postfix
 DEPLOY
   chmod +x /usr/local/bin/grommunio-cert-deploy
@@ -506,20 +523,27 @@ fi
   echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   # no local mailbox for cron output; failures are visible in the job logs
   echo 'MAILTO=""'
-  # grommunio-web full-text search indexes
+  # grommunio-web full-text search indexes: user groindex with group groweb
+  # like the packaged unit, so grommunio-web can read the indexes
   if [ -n "${INDEX_SCHEDULE}" ] && [ -x /usr/bin/grommunio-index ]; then
-    echo "${INDEX_SCHEDULE} groindex /usr/bin/grommunio-index -Aq >>/var/log/grommunio-index.log 2>&1"
+    echo "${INDEX_SCHEDULE} root sudo -u groindex -g groweb /usr/bin/grommunio-index -Aq >>/var/log/grommunio-index.log 2>&1"
   fi
   [ -x /usr/libexec/grommunio-web/session-cleanup ] && \
     echo "*/15 * * * * groweb /usr/libexec/grommunio-web/session-cleanup >/dev/null 2>&1"
-  # purge soft-deleted items and orphaned attachments (gromox-cleaner.timer)
-  echo "30 3 * * * root /usr/sbin/gromox-mbop -v foreach.here.mb ( purge-softdelete -t ${softdelete_purgetime:-30d} -r / ) ( purge-datafiles ) >/dev/null 2>&1"
+  # purge soft-deleted items and orphaned attachments (gromox-cleaner.timer);
+  # the parentheses are gromox-mbop arguments, hence quoted for the shell
+  PURGETIME=$(sed -n 's/^softdelete_purgetime[[:space:]]*=[[:space:]]*//p' /etc/gromox/gromox.cfg 2>/dev/null | tail -1)
+  echo "30 3 * * * root /usr/sbin/gromox-mbop -v foreach.here.mb '(' purge-softdelete -t ${PURGETIME:-30d} -r / ')' '(' purge-datafiles ')' >>/var/log/gromox-cleaner.log 2>&1"
   [ -x /usr/sbin/grommunio-spam-run.sh ] && \
     echo "40 4 * * * root /usr/sbin/grommunio-spam-run.sh >/dev/null 2>&1"
 } > /etc/cron.d/grommunio
 chmod 0644 /etc/cron.d/grommunio
-touch /var/log/grommunio-index.log
-chown groindex:groindex /var/log/grommunio-index.log
+touch /var/log/grommunio-index.log /var/log/gromox-cleaner.log
+chown groindex:groweb /var/log/grommunio-index.log
+# indexes written by an earlier version with the wrong group
+if [ -d /var/lib/grommunio-web/sqlite-index ]; then
+  find /var/lib/grommunio-web/sqlite-index -mindepth 1 -maxdepth 1 ! -group groweb -exec chgrp -R groweb {} + 2>/dev/null || true
+fi
 
 echo "# Do not delete this file unless you know what you do!" > /etc/grommunio-common/setup_done
 

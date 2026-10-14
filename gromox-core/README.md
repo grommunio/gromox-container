@@ -55,13 +55,15 @@ docker-entrypoint.sh
 ```
 
 "Once" is controlled by the marker files `/etc/gromox/.setup/{db_done,entry_done}`
-on the `gromox_config` volume; `FORCE_RECONFIG=true` removes them.
+on the `gromox_config` volume; `FORCE_RECONFIG=true` removes `entry_done` (the
+database initialisation is never repeated automatically; `CLEAR_DBS` only
+applies while `db_done` is absent, i.e. on a fresh `gromox_config` volume).
 
 ## Scheduled jobs (cron)
 
 | Schedule | Job |
 |----------|-----|
-| `INDEX_SCHEDULE` (default every 15 min) | `grommunio-index -Aq` (webmail full-text search indexes) |
+| `INDEX_SCHEDULE` (default every 15 min) | `grommunio-index -Aq` as groindex:groweb (webmail full-text search indexes) |
 | every 15 min | grommunio-web session cleanup |
 | daily 03:30 | `gromox-mbop` purge of soft-deleted items and orphaned data files |
 | daily 04:40 | `grommunio-spam-run.sh` (rspamd learning) |
