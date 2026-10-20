@@ -49,9 +49,11 @@ chown root:groarchive "${CONF}"
 chmod 0640 "${CONF}"
 
 # Web UI configuration (carries the DB password)
-sed -e "s#MYHOSTNAME#${FQDN}#g" -e "s#MYSMTP#${DOMAIN}#g" \
-    -e "s#MYSQL_HOSTNAME#${ARCHIVE_MYSQL_HOST}#" -e "s#MYSQL_DATABASE#${ARCHIVE_MYSQL_DB}#" \
-    -e "s#MYSQL_PASSWORD#${ARCHIVE_MYSQL_PASS//#/\\#}#" -e "s#MYSQL_USERNAME#${ARCHIVE_MYSQL_USER}#" \
+# (the PHP single-quoted literal additionally needs ' and \ escaped)
+PHP_PASS=$(sed_esc "$(printf '%s' "${ARCHIVE_MYSQL_PASS}" | sed -e "s/[\\\\']/\\\\&/g")")
+sed -e "s#MYHOSTNAME#$(sed_esc "${FQDN}")#g" -e "s#MYSMTP#$(sed_esc "${DOMAIN}")#g" \
+    -e "s#MYSQL_HOSTNAME#$(sed_esc "${ARCHIVE_MYSQL_HOST}")#" -e "s#MYSQL_DATABASE#$(sed_esc "${ARCHIVE_MYSQL_DB}")#" \
+    -e "s#MYSQL_PASSWORD#${PHP_PASS}#" -e "s#MYSQL_USERNAME#$(sed_esc "${ARCHIVE_MYSQL_USER}")#" \
     /etc/grommunio-archive/config-site.dist.php > /etc/grommunio-archive/config-site.php
 # restore-over-SMTP goes through the core postfix (the archive container has no MTA)
 cat >> /etc/grommunio-archive/config-site.php <<EOF
@@ -64,8 +66,8 @@ chmod 0640 /etc/grommunio-archive/config-site.php
 
 # ── Sphinx ────────────────────────────────────────────────────────
 php /etc/grommunio-archive/sphinx.conf.dist > /etc/sphinx/sphinx.conf
-sed -i -e "s#MYSQL_HOSTNAME#${ARCHIVE_MYSQL_HOST}#" -e "s#MYSQL_DATABASE#${ARCHIVE_MYSQL_DB}#" \
-       -e "s#MYSQL_PASSWORD#${ARCHIVE_MYSQL_PASS//#/\\#}#" -e "s#MYSQL_USERNAME#${ARCHIVE_MYSQL_USER}#" /etc/sphinx/sphinx.conf
+sed -i -e "s#MYSQL_HOSTNAME#$(sed_esc "${ARCHIVE_MYSQL_HOST}")#" -e "s#MYSQL_DATABASE#$(sed_esc "${ARCHIVE_MYSQL_DB}")#" \
+       -e "s#MYSQL_PASSWORD#$(sed_esc "${ARCHIVE_MYSQL_PASS}")#" -e "s#MYSQL_USERNAME#$(sed_esc "${ARCHIVE_MYSQL_USER}")#" /etc/sphinx/sphinx.conf
 chown groarchive:sphinx /etc/sphinx/sphinx.conf
 chmod 0640 /etc/sphinx/sphinx.conf
 install -d -m 0775 -o groarchive -g sphinx /var/lib/grommunio-archive/sphinx
@@ -73,6 +75,9 @@ chown -R groarchive:sphinx /var/lib/grommunio-archive/sphinx
 for d in store tmp stat error imap; do
   install -d -o groarchive -g grommunio "/var/lib/grommunio-archive/${d}"
 done
+# The encryption key lives with the store on the archive_data volume; piler
+# reads it from its compiled-in path.
+ln -sfn /var/lib/grommunio-archive/grommunio-archive.key /etc/grommunio-archive/grommunio-archive.key
 
 if ! nginx -t >/dev/null 2>&1; then
   log "WARNING: nginx configuration test failed:"

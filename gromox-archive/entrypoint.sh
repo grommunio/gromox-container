@@ -19,24 +19,38 @@ echo "CREATE DATABASE IF NOT EXISTS \`${ARCHIVE_MYSQL_DB}\`;" | mysql_archive >>
 HAS_META=$(mysql_archive -N -s -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${ARCHIVE_MYSQL_DB}' AND table_name='metadata';" 2>>"${LOGFILE}")
 if [ "${HAS_META:-0}" = "0" ]; then
   log "Populating archive database ${ARCHIVE_MYSQL_DB}"
-  # The schema ships the built-in accounts admin@local / auditor@local with
-  # well-known passwords; replace them with ARCHIVE_ADMIN_PASS / ARCHIVE_AUDIT_PASS.
-  sed -e "s#grommunioArchiveAdmin#${ARCHIVE_ADMIN_PASS//#/\\#}#g" \
-      -e "s#grommunioArchiveAuditor#${ARCHIVE_AUDIT_PASS//#/\\#}#g" \
-      /usr/share/grommunio-archive/db-mysql.sql | mysql_archive "${ARCHIVE_MYSQL_DB}" >>"${LOGFILE}" 2>&1 \
+  # (the passwords are set from the environment right after the import)
+  cat /usr/share/grommunio-archive/db-mysql.sql | mysql_archive "${ARCHIVE_MYSQL_DB}" >>"${LOGFILE}" 2>&1 \
     || log "WARNING: importing the archive schema failed, see ${LOGFILE}"
 else
   log "Archive database already populated"
 fi
 
+# ── Built-in accounts admin@local / auditor@local ─────────────────
+# The schema seeds them with well-known passwords; follow the environment on
+# every start (like the grommunio admin password / rspamd UI password).
+mysql_archive "${ARCHIVE_MYSQL_DB}" >>"${LOGFILE}" 2>&1 <<EOF || log "WARNING: could not set the archive built-in account passwords"
+UPDATE user SET password=ENCRYPT('$(sql_esc "${ARCHIVE_ADMIN_PASS}")', CONCAT('\$1\$', SUBSTRING(MD5(RAND()),1,8))) WHERE username='admin' AND domain='local';
+UPDATE user SET password=ENCRYPT('$(sql_esc "${ARCHIVE_AUDIT_PASS}")', CONCAT('\$1\$', SUBSTRING(MD5(RAND()),1,8))) WHERE username='auditor' AND domain='local';
+EOF
+
 # ── Encryption key (never regenerate: the store is unreadable without it) ──
-KEY=/etc/grommunio-archive/grommunio-archive.key
+# Stored with the mail store on the archive_data volume (configure.sh links
+# /etc/grommunio-archive/grommunio-archive.key to it).
+KEY=/var/lib/grommunio-archive/grommunio-archive.key
 if [ ! -s "${KEY}" ]; then
+  HAS_MAIL=$(mysql_archive -N -s -e "SELECT COUNT(*) FROM \`${ARCHIVE_MYSQL_DB}\`.metadata;" 2>/dev/null || echo 0)
+  if [ "${HAS_MAIL:-0}" != "0" ] && [ "${ARCHIVE_NEW_KEY:-false}" != "true" ]; then
+    log "ERROR: the archive database references ${HAS_MAIL} archived mails but ${KEY} is missing."
+    log "       Restore the key from the previous deployment (see README: Upgrading) or set ARCHIVE_NEW_KEY=true to start a new store."
+    exit 1
+  fi
   log "Generating archive encryption key"
   head -c 56 /dev/urandom > "${KEY}"
 fi
 chown root:groarchive "${KEY}"
 chmod 0640 "${KEY}"
+ln -sfn "${KEY}" /etc/grommunio-archive/grommunio-archive.key
 
 # ── Initial full-text index ───────────────────────────────────────
 if [ ! -s /var/lib/grommunio-archive/sphinx/main1.sph ]; then

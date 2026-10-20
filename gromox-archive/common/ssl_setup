@@ -9,21 +9,35 @@ SSL_KEY_T="/etc/grommunio-common/ssl/server.key"
 # shared bundle/key into the cert volume (self-signed or Let's Encrypt).
 # docker-compose only gates us on core's container start, not on the cert
 # being written, so wait for the shared bundle before anything uses it.
+SSL_CA_CRT="/etc/grommunio-common/ssl/ca.pem"
+
 wait_for_shared_cert()
 {
   local i
   for i in $(seq 1 300); do
     if [ -s "${SSL_BUNDLE_T}" ] && [ -s "${SSL_KEY_T}" ]; then
-      return 0
+      break
     fi
     [ $((i % 15)) -eq 1 ] && echo "Waiting for shared certificate from gromox-core (${i}/300)..." | tee -a "${LOGFILE}"
     sleep 2
   done
-  echo "ERROR: shared certificate not available from gromox-core after timeout." | tee -a "${LOGFILE}"
-  return 1
+  if [ ! -s "${SSL_BUNDLE_T}" ] || [ ! -s "${SSL_KEY_T}" ]; then
+    echo "ERROR: shared certificate not available from gromox-core after timeout." | tee -a "${LOGFILE}"
+    return 1
+  fi
+  # With the built-in CA (type 0) the trust anchor must be in place before
+  # Files/Archive start talking to https://FQDN. On an upgrade the volume may
+  # hold an old self-signed bundle without ca.pem until gromox-core has
+  # replaced it; give it a little time, then continue regardless.
+  if [ "${SSL_INSTALL_TYPE:-0}" = "0" ]; then
+    for i in $(seq 1 60); do
+      [ -s "${SSL_CA_CRT}" ] && openssl verify -CAfile "${SSL_CA_CRT}" "${SSL_BUNDLE_T}" >/dev/null 2>&1 && break
+      [ $((i % 15)) -eq 1 ] && echo "Waiting for the built-in CA from gromox-core (${i}/60)..." | tee -a "${LOGFILE}"
+      sleep 2
+    done
+  fi
+  return 0
 }
-
-SSL_CA_CRT="/etc/grommunio-common/ssl/ca.pem"
 
 # Trust the deployment's built-in CA inside this container (SSL_INSTALL_TYPE=0:
 # Files/Archive talk to https://FQDN). Only CA certificates are exported into

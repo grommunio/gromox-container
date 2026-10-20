@@ -24,6 +24,13 @@ for v in FQDN DOMAIN ARCHIVE_MYSQL_PASS ARCHIVE_ADMIN_PASS; do
   fi
 done
 
+for v in ARCHIVE_MYSQL_PASS ARCHIVE_ADMIN_PASS ARCHIVE_AUDIT_PASS; do
+  case "${!v:-}" in
+    admin|grommunio|grommunioArchiveAdmin|grommunioArchiveAuditor|Lu3s3WmFxXghtLwJnuqN)
+      echo "WARNING: ${v} still has a default value - change it in var.local.env before exposing this host" >&2 ;;
+  esac
+done
+
 touch "${LOGFILE}"
 chmod 0600 "${LOGFILE}"
 
