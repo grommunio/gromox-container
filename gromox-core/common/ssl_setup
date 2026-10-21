@@ -60,12 +60,21 @@ letsencrypt() {
   fi
 
   echo "No existing certificates found for ${FQDN}, running Certbot..."
+
+  # Remember whether a usable cert is already in place; if Certbot fails we keep
+  # it as fallback instead of overwriting it with a self-signed one.
+  HAD_CERT=0
+  if [ -s "${SSL_BUNDLE_T}" ] && [ -s "${SSL_KEY_T}" ]; then
+    HAD_CERT=1
+  fi
+
   [ -e "/etc/nginx/conf.d/grommunio.conf" ] && mv "/etc/nginx/conf.d/grommunio.conf" "/etc/nginx/conf.d/grommunio.conf.grommunio-setup"
 
   # nginx is not running during config phase, so port 8080 is free.
   # Host publishes :80 -> container :8080, so the ACME http-01 server must
   # bind 8080 (not the certbot default of 80) to receive the challenge.
   certbot certonly -n --standalone --agree-tos \
+    --allow-subset-of-names \
     --preferred-challenges http \
     --http-01-port 8080 \
     --cert-name="${FQDN}" \
@@ -76,6 +85,10 @@ letsencrypt() {
   [ -e "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" ] && mv "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" "/etc/nginx/conf.d/grommunio.conf"
 
   if [ $CERTBOT_EXIT -ne 0 ] || [ ! -f "/etc/letsencrypt/live/${FQDN}/cert.pem" ]; then
+    if [ $HAD_CERT -eq 1 ]; then
+      echo "Certbot failed (exit code: ${CERTBOT_EXIT}), keeping existing certificate." | tee -a "${LOGFILE}"
+      return 0
+    fi
     echo "Certbot failed (exit code: ${CERTBOT_EXIT}), falling back to self-signed certificate." | tee -a "${LOGFILE}"
     selfcert
     return 0

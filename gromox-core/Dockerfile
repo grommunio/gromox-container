@@ -22,7 +22,8 @@ RUN zypper -n install -y \
         bind-utils \
         timezone   \
         nano       \
-        lsof
+        lsof       \
+        util-linux-systemd
 
 # Default timezone — can be overridden at runtime via the TIMEZONE env var in var.env
 RUN ln -sf /usr/share/zoneinfo/Europe/Vienna /etc/localtime && \
@@ -35,17 +36,17 @@ RUN	curl https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 	  zypper -n refresh grommunio
 
 # Install grommunio packages (retry up to 3 times for transient download errors)
-RUN    zypper --non-interactive install -y vim mysql nginx \
+RUN    zypper --non-interactive install -y vim mysql nginx pandoc-cli \
          gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
          grommunio-common grommunio-web grommunio-index grommunio-sync grommunio-dav postfix postfix-mysql \
          grommunio-chat grommunio-keycloak grommunio-auth cyrus-sasl-saslauthd cyrus-sasl-plain jq redis \
        || { echo "Retry 1..."; zypper clean -a; sleep 5; \
-            zypper --non-interactive install -y vim mysql nginx \
+            zypper --non-interactive install -y vim mysql nginx pandoc-cli \
               gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
               grommunio-common grommunio-web grommunio-index grommunio-sync grommunio-dav postfix postfix-mysql \
               grommunio-chat grommunio-keycloak grommunio-auth cyrus-sasl-saslauthd cyrus-sasl-plain jq redis; } \
        || { echo "Retry 2..."; zypper clean -a; sleep 10; \
-            zypper --non-interactive install -y vim mysql nginx \
+            zypper --non-interactive install -y vim mysql nginx pandoc-cli \
               gromox grommunio-admin-api grommunio-admin-web grommunio-antispam \
               grommunio-common grommunio-web grommunio-index grommunio-sync grommunio-dav postfix postfix-mysql \
               grommunio-chat grommunio-keycloak grommunio-auth cyrus-sasl-saslauthd cyrus-sasl-plain jq redis; }

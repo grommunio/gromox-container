@@ -38,7 +38,10 @@ memory_check
 
 # Set repository credentials directly
 # shellcheck source=common/repo
-INSTALLVALUE="core, chat"
+INSTALLVALUE="core"
+if [[ $ENABLE_CHAT = true ]] ; then
+  INSTALLVALUE="core, chat"
+fi
 
 X500_FILE="/etc/gromox/.x500_org"
 if [ -n "${X500}" ]; then
@@ -52,6 +55,11 @@ fi
 
 . "/home/common/ssl_setup"
 mkdir -p /etc/grommunio-common/ssl
+
+# Put the nginx ssl include in place up front so `nginx -t` passes before any
+# cert exists.
+cp -f /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf
+ln -sf /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf
 RETCMD=1
 if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
   clear
@@ -175,8 +183,6 @@ setconf /etc/gromox/pop3.cfg pop3_certificate_path "${SSL_BUNDLE_T}"
 setconf /etc/gromox/pop3.cfg pop3_private_key_path "${SSL_KEY_T}"
 setconf /etc/gromox/pop3.cfg tls_min_proto tls1.2
 
-cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf
-ln -s /etc/grommunio-common/nginx/ssl_certificate.conf /etc/grommunio-admin-common/nginx-ssl.conf
 chown gromox:gromox /etc/grommunio-common/ssl/*
 
 # Make the folder writable for grodav

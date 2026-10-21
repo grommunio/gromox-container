@@ -48,7 +48,7 @@ docker-entrypoint.sh
   ├── db.sh              (once: initialize gromox database schema)
   ├── entrypoint.sh      (once: SSL, postfix, nginx, gromox config, optional features)
   ├── port remapping     (every start: nginx, postfix, imap, pop3 → high ports)
-  ├── chat enablement    (if CHAT_CONFIG exists)
+  ├── chat enablement    (if ENABLE_CHAT=true and CHAT_CONFIG exists)
   ├── certbot cron       (if SSL_INSTALL_TYPE=2)
   └── exec supervisord   (PID 1)
 ```

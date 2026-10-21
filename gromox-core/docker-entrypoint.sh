@@ -35,6 +35,11 @@ done
 if [ ! -f "${MARKER_DIR}/db_done" ]; then
   /home/scripts/db.sh
   touch "${MARKER_DIR}/db_done"
+else
+  # Always bring the schema up to the level of the installed gromox package
+  # (db.sh already does this on first start).
+  echo "Upgrading gromox DB schema to newest version..."
+  gromox-dbop -U >>"${LOGFILE:-/dev/null}" 2>&1 || echo "  gromox-dbop -U failed, see ${LOGFILE}"
 fi
 
 # Run entrypoint configuration (once)
@@ -84,9 +89,14 @@ fi
 
 # ── Conditional services ──────────────────────────────────────────
 
-# Enable grommunio-chat if configured (check for chat config file existence)
-if [ -f "${CHAT_CONFIG}" ] && [ -f /etc/supervisor.d/grommunio-chat.conf ]; then
-  sed -i 's/autostart=false/autostart=true/' /etc/supervisor.d/grommunio-chat.conf
+# Enable grommunio-chat only if ENABLE_CHAT=true and the chat config exists;
+# otherwise keep it disabled (also reverts an earlier enablement).
+if [ -f /etc/supervisor.d/grommunio-chat.conf ]; then
+  if [ "${ENABLE_CHAT}" = "true" ] && [ -f "${CHAT_CONFIG}" ]; then
+    sed -i 's/autostart=false/autostart=true/' /etc/supervisor.d/grommunio-chat.conf
+  else
+    sed -i 's/autostart=true/autostart=false/' /etc/supervisor.d/grommunio-chat.conf
+  fi
 fi
 
 # Set up certbot renewal if Let's Encrypt is enabled

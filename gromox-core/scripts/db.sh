@@ -27,3 +27,6 @@ else
 	echo 'Gromox DB is popoulated. Skipping' >>"$LOGFILE" 2>&1
 fi
 
+# Always bring the schema up to the level of the installed gromox package.
+echo 'Upgrading gromox DB schema to newest version...' >>"$LOGFILE" 2>&1
+gromox-dbop -U >>"$LOGFILE" 2>&1

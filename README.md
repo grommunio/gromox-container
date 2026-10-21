@@ -158,6 +158,7 @@ Document editing and file sync:
 
 | Variable | Description |
 |----------|-------------|
+| `ENABLE_CHAT` | Set to `true` to set up and run grommunio-chat (default: disabled) |
 | `CHAT_MYSQL_HOST` | MySQL host for chat |
 | `CHAT_MYSQL_USER` | MySQL user for chat |
 | `CHAT_MYSQL_PASS` | MySQL password for chat |
@@ -420,7 +421,7 @@ Or use Let's Encrypt certificates (`SSL_INSTALL_TYPE=2`).
 
 ### Chat not starting
 
-Chat only starts if `CHAT_CONFIG` points to an existing config file. Verify:
+Chat only starts if `ENABLE_CHAT=true` is set and `CHAT_CONFIG` points to an existing config file. Verify:
 
 ```bash
 docker exec gromox-core ls -la /etc/grommunio-chat/config.json
