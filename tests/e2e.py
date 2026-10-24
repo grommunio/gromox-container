@@ -387,12 +387,14 @@ code, hdr, body = http(f"https://{HOST}:443/chat/api/v4/system/ping")
 check("chat API ping through proxy", code == 200 and b"OK" in body, f"{code} {body[:80]!r}")
 
 # ── 12. gromox-index ran and created an index for the user ────────────
-r = dexec(CORE, "bash", "-c", "sudo -u groindex /usr/bin/grommunio-index -Aq; ls /var/lib/grommunio-web/sqlite-index/ 2>/dev/null | head")
+r = dexec(CORE, "bash", "-c", "sudo -u groindex -g groweb /usr/bin/grommunio-index -Aq; ls /var/lib/grommunio-web/sqlite-index/ 2>/dev/null | head")
+r3 = dexec(CORE, "bash", "-c", "stat -c '%G' /var/lib/grommunio-web/sqlite-index/*/ 2>/dev/null | sort -u")
+check("search indexes are readable by grommunio-web (group groweb)", r3.stdout.strip() == "groweb", r3.stdout.strip().replace("\n", ","))
 r2 = dexec(CORE, "bash", "-c", "ss -tlnp | grep -E ':24 ' ; postconf -h mynetworks")
 check("delivery-queue bound to loopback only and gateways excluded from mynetworks",
       "127.0.0.1]:24" in r2.stdout or "127.0.0.1:24" in r2.stdout, r2.stdout.strip().replace("\n", " | ")[:200])
 check("postfix mynetworks excludes the docker gateways", "!" in r2.stdout and "172.28.0.0/24" in r2.stdout, r2.stdout.strip().split("|")[-1][:120])
-check("grommunio-index runs as groindex", r.returncode == 0, (r.stdout + r.stderr)[:200].replace("\n", " "))
+check("grommunio-index runs as groindex:groweb", r.returncode == 0, (r.stdout + r.stderr)[:200].replace("\n", " "))
 
 failed = [n for n, ok, _ in results if not ok]
 print(f"\n{len(results) - len(failed)}/{len(results)} checks passed")

@@ -59,6 +59,8 @@ EOF
 
 Change the database passwords in `docker-compose.yml` (the five MariaDB
 services) and set the matching `*_MYSQL_PASS` values in `var.local.env`.
+Values are parsed by Docker Compose: write a literal `$` as `$$` (or put the
+value in single quotes) and avoid ` #` inside a value.
 
 ### 2. Start services
 
@@ -229,9 +231,11 @@ Document editing and file sync:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `INDEX_SCHEDULE` | cron schedule for the webmail full-text search index (`grommunio-index`), empty disables | `*/15 * * * *` |
-| `CLEAR_DBS` | `true` to drop and recreate the core database during (re)initialisation. **Destroys all mail metadata** | `false` |
+| `CLEAR_DBS` | `true` to drop and recreate a populated core database when the database initialisation runs (first start with an empty `gromox_config` volume). **Destroys all mail metadata** | `false` |
 | `MYSQL_ROOT_PASS` | MySQL root password (required if `CLEAR_DBS=true`) | |
-| `FORCE_RECONFIG` | `true` to re-run the one-time initialisation on the next start | `false` |
+| `FORCE_RECONFIG` | `true` to re-run the one-time initialisation of gromox-core on the next start (certificate check, admin password set to `ADMIN_PASS`, chat admin). The database initialisation is not repeated | `false` |
+| `ARCHIVE_NEW_KEY` | `true` to let gromox-archive create a new encryption key although the archive database already references mails (they become unreadable) | `false` |
+| `CORE_HOST` | Hostname of the core container as seen from archive/office (mail relay) | `gromox-core` |
 | `RELAYHOST` | SMTP relay host for outbound mail | (empty) |
 | `TIMEZONE` | Timezone | `Europe/Vienna` |
 | `TRUSTED_PROXIES` | Networks grommunio Files trusts as reverse proxies | the compose network |
@@ -265,6 +269,7 @@ The archive container exposes ports **8443** (nginx) and **2693** (archive SMTP)
 | `gromox_config` | `/etc/gromox` | Gromox service configuration, X500 id, init markers |
 | `gromox` | `/var/lib/gromox` | Gromox data (mailboxes) |
 | `postfix_spool` | `/var/spool/postfix` | Mail queue |
+| `redis_data` | `/var/lib/redis` | rspamd statistics (Bayes), greylisting, history |
 | `grommunio_admin_api` | `/var/lib/grommunio-admin-api` | Admin API data |
 | `grommunio_admin_config` | `/etc/grommunio-admin-api` | Admin API configuration (LDAP settings) and JWT signing key |
 | `grommunio_admin_license` | `/etc/grommunio-admin-common/license` | Uploaded license |
@@ -276,8 +281,7 @@ The archive container exposes ports **8443** (nginx) and **2693** (archive SMTP)
 | `./gromox_letsencrypt` (bind) | `/etc/letsencrypt` | Let's Encrypt account, certificates and renewal state |
 | `files_data` | `/var/lib/grommunio-files` | Files configuration and user data |
 | `office_data` | `/var/lib/grommunio-office` | Office document cache and the Files/Office JWT secret |
-| `archive_config` | `/etc/grommunio-archive` | Archive configuration and **encryption key** |
-| `archive_data` | `/var/lib/grommunio-archive` | Archived mail store and search index |
+| `archive_data` | `/var/lib/grommunio-archive` | Archived mail store, search index and the **encryption key** |
 | `opensuse_data` | `/data` | Shared data volume (legacy) |
 | `gromox_services` | `/home/gromox-services` | Service scripts (legacy) |
 | `gromox_mysql_data` | MariaDB data | Core database |
@@ -359,7 +363,7 @@ Files by `occ upgrade`, MariaDB by `MARIADB_AUTO_UPGRADE`).
 ```bash
 docker cp gromox-core:/etc/grommunio-common/ssl/ca.pem grommunio-ca.pem
 ```
-To start over with a new CA and certificate:
+To start over with a new CA and certificate (this re-runs the one-time initialisation, which also sets the admin password back to `ADMIN_PASS`):
 ```bash
 docker exec gromox-core rm -f /etc/grommunio-common/ssl/ca.key /etc/grommunio-common/ssl/ca.pem /etc/grommunio-common/ssl/server-bundle.pem /etc/grommunio-common/ssl/server.key /etc/gromox/.setup/entry_done
 docker compose restart gromox-core gromox-archive gromox-office
@@ -387,16 +391,18 @@ The files are copied into the shared certificate volume on every start of gromox
 
 ### Backup
 
-Key data to back up:
+Key data to back up (on SELinux hosts add `:z` to the `-v $(pwd)/backup:/backup` mounts):
 
 ```bash
+mkdir -p backup
+
 # Databases (consistent dumps)
 for db in gromox-db chat-db files-db office-db archive-db; do
   docker exec $db sh -c 'mariadb-dump --all-databases -uroot -p"$MARIADB_ROOT_PASSWORD"' > backup/$db.sql
 done
 
-# Mailboxes, configuration, certificates, Files data, archive store + key
-for v in gromox gromox_config cert_data grommunio_admin_config grommunio_admin_license files_data archive_data archive_config grommunio_chat_data; do
+# Mailboxes, configuration, certificates, Files data, archive store + key, chat uploads, rspamd data
+for v in gromox gromox_config cert_data grommunio_admin_config grommunio_admin_license files_data archive_data grommunio_chat_config grommunio_chat_data redis_data; do
   docker run --rm -v grommunio_$v:/data -v $(pwd)/backup:/backup busybox tar czf /backup/$v.tar.gz /data
 done
 
@@ -406,26 +412,43 @@ tar czf backup/letsencrypt.tar.gz gromox_letsencrypt/
 
 ### Upgrading from the previous container layout
 
-Deployments created before the `configure.sh` split kept the archive store and
-key, the Files data and the chat uploads in the container layer. If those
-containers were never recreated, copy the data out before the first
-`docker compose up -d` with the new version, otherwise the new (empty) volumes
-start fresh:
-
-```bash
-docker cp grommunio-gromox-archive-1:/etc/grommunio-archive/grommunio-archive.key ./archive.key
-docker cp grommunio-gromox-archive-1:/var/lib/grommunio-archive/store ./archive-store
-docker cp grommunio-gromox-office-1:/var/lib/grommunio-files/config/config.php ./files-config.php
-docker cp grommunio-gromox-office-1:/var/lib/grommunio-files/data ./files-data
-```
-
-After the upgrade copy them back into the new containers (`gromox-archive:/etc/grommunio-archive/`,
-`gromox-archive:/var/lib/grommunio-archive/`, `gromox-office:/var/lib/grommunio-files/`) and restart.
-The Files database is kept; without its `config.php` the entrypoint refuses to
-re-install Files and logs a warning. Everything else (mailboxes, databases,
-certificates, Let's Encrypt state) was already on volumes and is picked up
-unchanged. `var.env` is still read; move your changes to `var.local.env` at your
-convenience.
+1. **Configuration.** Earlier versions told you to edit the tracked `var.env`
+   and to copy it to `variables_data/var.env`. `variables_data/var.env` is
+   still read (between `var.env` and `var.local.env`), so the effective values
+   do not change. Before `git pull`, move local edits of the tracked file out
+   of the way, otherwise the pull is refused:
+   ```bash
+   cp var.env var.local.env          # keep your values (or use variables_data/var.env)
+   git checkout -- var.env
+   git pull
+   ```
+2. **Data that was not on a volume.** Earlier versions kept the archive store
+   and encryption key, the Files data and `config.php`, and the chat uploads in
+   the container layer. If those containers were never recreated, copy the data
+   out *before* the first `docker compose up -d` with the new version:
+   ```bash
+   docker cp grommunio-gromox-archive-1:/etc/grommunio-archive/grommunio-archive.key ./archive.key
+   docker cp grommunio-gromox-archive-1:/var/lib/grommunio-archive/store ./archive-store
+   docker cp grommunio-gromox-office-1:/var/lib/grommunio-files/config/config.php ./files-config.php
+   docker cp grommunio-gromox-office-1:/var/lib/grommunio-files/data ./files-data
+   docker cp grommunio-gromox-core-1:/var/lib/grommunio-chat ./chat-data
+   ```
+   After the upgrade copy them into the new containers: the key to
+   `gromox-archive:/var/lib/grommunio-archive/grommunio-archive.key`, the store
+   to `gromox-archive:/var/lib/grommunio-archive/store`, `config.php` to
+   `gromox-office:/var/lib/grommunio-files/config/`, the Files data to
+   `gromox-office:/var/lib/grommunio-files/data`, the chat uploads to
+   `gromox-core:/var/lib/grommunio-chat`, then
+   `docker compose restart gromox-core gromox-archive gromox-office`.
+   gromox-archive refuses to start with a new key while the archive database
+   already references mails (set `ARCHIVE_NEW_KEY=true` to start a new store);
+   gromox-office refuses to re-install Files over a populated database without
+   its `config.php` and logs a warning. Mailboxes, databases, certificates and
+   the Let's Encrypt state were already on volumes and are picked up unchanged.
+3. The built-in archive accounts `admin@local`/`auditor@local` get
+   `ARCHIVE_ADMIN_PASS`/`ARCHIVE_AUDIT_PASS` (default `ADMIN_PASS`) on the first
+   start; webmail search indexes created by earlier versions are made readable
+   for grommunio-web automatically.
 
 ### Resetting everything
 
@@ -464,6 +487,10 @@ Chat only starts if `ENABLE_CHAT=true` and `CHAT_CONFIG` points to an existing c
 docker exec gromox-core ls -la /etc/grommunio-chat/config.json
 docker exec gromox-core supervisorctl status grommunio-chat
 ```
+
+### Fetchmail
+
+The admin UI offers fetchmail settings, but fetchmail is not installed in the container image; the settings have no effect.
 
 ### Checking port bindings
 
