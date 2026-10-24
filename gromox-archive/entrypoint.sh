@@ -1,103 +1,62 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # SPDX-FileCopyrightText: 2021 grommunio GmbH
-# Interactive grommunio setup
+#
+# gromox-archive initialisation. Every step checks the persistent state
+# (archive_config / archive_data volumes, database) and is skipped when it
+# has already been done, so this is safe to run on every start.
 
-DATADIR="${0%/*}"
-if [ "${DATADIR}" = "$0" ]; then
-	DATADIR="/home"
-else
-	DATADIR="$(readlink -f "$0")"
-	DATADIR="${DATADIR%/*}"
-	DATADIR="$(readlink -f "${DATADIR}")"
-fi
-if ! test -e "$LOGFILE"; then
-	true >"$LOGFILE"
-	chmod 0600 "$LOGFILE"
-fi
-. "${DATADIR}/common/helpers"
-TMPF=$(mktemp /tmp/grommunio-setup.XXXXXXXX)
+. /home/common/helpers
 
-memory_check()
-{
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') init: $*" | tee -a "${LOGFILE}"; }
 
-  local HAVE=$(perl -lne 'print $1 if m{^MemTotal:\s*(\d+)}i' </proc/meminfo)
-  # Install the threshold a little lower than what we ask, to account for
-  # FW/OS (Vbox with 4194304 KB ends up with MemTotal of about 4020752 KB)
-  local THRES=4000000
-  local ASK=4096000
-  if [ -z "${HAVE}" ] || [ "${HAVE}" -ge "${THRES}" ]; then
-    return 0
-  fi
-  memory_notice $((HAVE/1024)) $((ASK/1024))
-
+mysql_archive() {
+  MYSQL_PWD="${ARCHIVE_MYSQL_PASS}" mariadb -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" "$@"
 }
 
-memory_check
-
-# Set repository credentials directly
-INSTALLVALUE="archive"
-
-X500_FILE="/etc/gromox/.x500_org"
-if [ -n "${X500}" ]; then
-  echo "${X500}" > "${X500_FILE}"
-elif [ -f "${X500_FILE}" ]; then
-  X500="$(cat "${X500_FILE}")"
+# ── Database schema ───────────────────────────────────────────────
+echo "CREATE DATABASE IF NOT EXISTS \`${ARCHIVE_MYSQL_DB}\`;" | mysql_archive >>"${LOGFILE}" 2>&1 || true
+HAS_META=$(mysql_archive -N -s -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${ARCHIVE_MYSQL_DB}' AND table_name='metadata';" 2>>"${LOGFILE}")
+if [ "${HAS_META:-0}" = "0" ]; then
+  log "Populating archive database ${ARCHIVE_MYSQL_DB}"
+  # (the passwords are set from the environment right after the import)
+  cat /usr/share/grommunio-archive/db-mysql.sql | mysql_archive "${ARCHIVE_MYSQL_DB}" >>"${LOGFILE}" 2>&1 \
+    || log "WARNING: importing the archive schema failed, see ${LOGFILE}"
 else
-  X500="i$(printf "%llx" "$(date +%s)")"
-  echo "${X500}" > "${X500_FILE}"
+  log "Archive database already populated"
 fi
 
-. "/home/common/ssl_setup"
-RETCMD=1
-if [ "${SSL_INSTALL_TYPE}" = "0" ]; then
-  clear
-  if ! selfcert; then
-  touch ssle
+# ── Built-in accounts admin@local / auditor@local ─────────────────
+# The schema seeds them with well-known passwords; follow the environment on
+# every start (like the grommunio admin password / rspamd UI password).
+mysql_archive "${ARCHIVE_MYSQL_DB}" >>"${LOGFILE}" 2>&1 <<EOF || log "WARNING: could not set the archive built-in account passwords"
+UPDATE user SET password=ENCRYPT('$(sql_esc "${ARCHIVE_ADMIN_PASS}")', CONCAT('\$1\$', SUBSTRING(MD5(RAND()),1,8))) WHERE username='admin' AND domain='local';
+UPDATE user SET password=ENCRYPT('$(sql_esc "${ARCHIVE_AUDIT_PASS}")', CONCAT('\$1\$', SUBSTRING(MD5(RAND()),1,8))) WHERE username='auditor' AND domain='local';
+EOF
+
+# ── Encryption key (never regenerate: the store is unreadable without it) ──
+# Stored with the mail store on the archive_data volume (configure.sh links
+# /etc/grommunio-archive/grommunio-archive.key to it).
+KEY=/var/lib/grommunio-archive/grommunio-archive.key
+if [ ! -s "${KEY}" ]; then
+  HAS_MAIL=$(mysql_archive -N -s -e "SELECT COUNT(*) FROM \`${ARCHIVE_MYSQL_DB}\`.metadata;" 2>/dev/null || echo 0)
+  if [ "${HAS_MAIL:-0}" != "0" ] && [ "${ARCHIVE_NEW_KEY:-false}" != "true" ]; then
+    log "ERROR: the archive database references ${HAS_MAIL} archived mails but ${KEY} is missing."
+    log "       Restore the key from the previous deployment (see README: Upgrading) or set ARCHIVE_NEW_KEY=true to start a new store."
+    exit 1
   fi
+  log "Generating archive encryption key"
+  head -c 56 /dev/urandom > "${KEY}"
 fi
+chown root:groarchive "${KEY}"
+chmod 0640 "${KEY}"
+ln -sfn "${KEY}" /etc/grommunio-archive/grommunio-archive.key
 
-writelog "Config stage: put php files into place"
-if [ -d /etc/php8 ]; then
-  if [ -e "/etc/php8/fpm/php-fpm.conf.default" ] ; then
-    mv /etc/php8/fpm/php-fpm.conf.default /etc/php8/fpm/php-fpm.conf
-  fi
-elif [ -d /etc/php7 ]; then
-  if [ -e "/etc/php7/fpm/php-fpm.conf.default" ] ; then
-    mv /etc/php7/fpm/php-fpm.conf.default /etc/php7/fpm/php-fpm.conf
-  fi
+# ── Initial full-text index ───────────────────────────────────────
+if [ ! -s /var/lib/grommunio-archive/sphinx/main1.sph ]; then
+  log "Building initial sphinx indexes"
+  sudo -u groarchive indexer --config /etc/sphinx/sphinx.conf --all >>"${LOGFILE}" 2>&1 \
+    || log "WARNING: initial indexer run failed, see ${LOGFILE}"
 fi
-
-cp /home/config/certificate.conf /etc/grommunio-common/nginx/ssl_certificate.conf
-#chown gromox:gromox /etc/grommunio-common/ssl/*
-
-if [[ $INSTALLVALUE == *"archive"* ]] ; then
-
-    echo "drop database if exists ${ARCHIVE_MYSQL_DB}; \
-          create database ${ARCHIVE_MYSQL_DB};" | mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" >/dev/null 2>&1
-
-  mysql -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" -p"${ARCHIVE_MYSQL_PASS}" "${ARCHIVE_MYSQL_DB}" < /usr/share/grommunio-archive/db-mysql.sql
-
-  sed -e "s#MYHOSTNAME#${FQDN}#g" -e "s#MYSMTP#${DOMAIN}#g" -e "s/MYSQL_HOSTNAME/${ARCHIVE_MYSQL_HOST}/" -e "s/MYSQL_DATABASE/${ARCHIVE_MYSQL_DB}/" -e "s/MYSQL_PASSWORD/${ARCHIVE_MYSQL_PASS}/" -e "s/MYSQL_USERNAME/${ARCHIVE_MYSQL_USER}/" /etc/grommunio-archive/config-site.dist.php > /etc/grommunio-archive/config-site.php
-
-  mv /etc/grommunio-archive/grommunio-archive.conf.dist /etc/grommunio-archive/grommunio-archive.conf
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqluser "${ARCHIVE_MYSQL_USER}" 0
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqlpwd "${ARCHIVE_MYSQL_PASS}" 0
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqldb "${ARCHIVE_MYSQL_DB}" 0
-  setconf /etc/grommunio-archive/grommunio-archive.conf mysqlhost "${ARCHIVE_MYSQL_HOST}" 0
-  setconf /etc/grommunio-archive/grommunio-archive.conf listen_addr 0.0.0.0 0
-
-  php /etc/grommunio-archive/sphinx.conf.dist > /etc/sphinx/sphinx.conf
-  sed -i -e "s/MYSQL_HOSTNAME/${ARCHIVE_MYSQL_HOST}/" -e "s/MYSQL_DATABASE/${ARCHIVE_MYSQL_DB}/" -e "s/MYSQL_PASSWORD/${ARCHIVE_MYSQL_PASS}/" -e "s/MYSQL_USERNAME/${ARCHIVE_MYSQL_USER}/" /etc/sphinx/sphinx.conf
-  chown groarchive:sphinx /etc/sphinx/sphinx.conf
-  chmod 644 /etc/sphinx/sphinx.conf
-  chown groarchive:sphinx /var/lib/grommunio-archive/sphinx/ -R
-  chmod 775 /var/lib/grommunio-archive/sphinx/
-  sudo -u groarchive indexer --all
-
-  < /dev/urandom head -c 56 > /etc/grommunio-archive/grommunio-archive.key
-
-fi
-setup_done
 
 exit 0

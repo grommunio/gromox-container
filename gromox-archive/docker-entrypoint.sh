@@ -1,48 +1,75 @@
 #!/bin/bash
+# gromox-archive container entrypoint.
+#
+#   1. environment defaults, runtime directories
+#   2. wait for the shared certificate (written by gromox-core) and the DB
+#   3. configure.sh: idempotent configuration, applied on EVERY start
+#   4. entrypoint.sh: initialisation that is skipped when already done
+#      (database schema, encryption key, initial search index)
+#   5. exec supervisord as PID 1
 set -e
 
-# Source environment variables
-if [ -f /home/vars/var.env ]; then
-  set -a
-  . /home/vars/var.env
-  set +a
-fi
+export LOGFILE="${LOGFILE:-/var/log/grommunio-setup.log}"
+export ARCHIVE_MYSQL_HOST="${ARCHIVE_MYSQL_HOST:-archive-db}"
+export ARCHIVE_MYSQL_USER="${ARCHIVE_MYSQL_USER:-groarchive}"
+export ARCHIVE_MYSQL_DB="${ARCHIVE_MYSQL_DB:-groarchive}"
+export ARCHIVE_RETENTION_DAYS="${ARCHIVE_RETENTION_DAYS:-2557}"
+export ARCHIVE_ADMIN_PASS="${ARCHIVE_ADMIN_PASS:-${ADMIN_PASS}}"
+export ARCHIVE_AUDIT_PASS="${ARCHIVE_AUDIT_PASS:-${ADMIN_PASS}}"
+
+for v in FQDN DOMAIN ARCHIVE_MYSQL_PASS ARCHIVE_ADMIN_PASS; do
+  if [ -z "${!v:-}" ]; then
+    echo "ERROR: ${v} is not set (check var.env / var.local.env)" >&2
+    exit 1
+  fi
+done
+
+for v in ARCHIVE_MYSQL_PASS ARCHIVE_ADMIN_PASS ARCHIVE_AUDIT_PASS; do
+  case "${!v:-}" in
+    admin|grommunio|grommunioArchiveAdmin|grommunioArchiveAuditor|Lu3s3WmFxXghtLwJnuqN)
+      echo "WARNING: ${v} still has a default value - change it in var.local.env before exposing this host" >&2 ;;
+  esac
+done
+
+touch "${LOGFILE}"
+chmod 0600 "${LOGFILE}"
 
 # Apply timezone from var.env (TIMEZONE); falls back to the image default if unset/invalid
-if [ -n "${TIMEZONE}" ] && [ -f "/usr/share/zoneinfo/${TIMEZONE}" ]; then
+if [ -n "${TIMEZONE:-}" ] && [ -f "/usr/share/zoneinfo/${TIMEZONE}" ]; then
   ln -sf "/usr/share/zoneinfo/${TIMEZONE}" /etc/localtime
   echo "${TIMEZONE}" > /etc/timezone
 fi
 
-# Use persistent marker directory (on shared /data volume)
-MARKER_DIR="/data/.setup-archive"
-mkdir -p "${MARKER_DIR}"
+# Runtime directories (no systemd to apply tmpfiles.d)
+systemd-tmpfiles --create >/dev/null 2>&1 || true
+install -d -m 0711 /run/php-fpm
+install -d -m 0775 -o groarchive -g sphinx /run/grommunio-archive
+install -d -m 0755 -o sphinx -g sphinx /run/sphinx
 
-# Allow forced reconfiguration via environment variable
-if [ "${FORCE_RECONFIG}" = "true" ]; then
-  rm -f "${MARKER_DIR}/entry_done"
-fi
+. /home/common/ssl_setup
+wait_for_shared_cert
 
-# Run entrypoint configuration (once)
-if [ ! -f "${MARKER_DIR}/entry_done" ]; then
-  /home/entrypoint.sh
-  touch "${MARKER_DIR}/entry_done"
-fi
-
-# ── SSL certificate config ────────────────────────────────────────
-# Create nginx SSL config pointing to shared cert volume
-mkdir -p /etc/grommunio-common/nginx
-cat > /etc/grommunio-common/nginx/ssl_certificate.conf <<'SSLEOF'
-ssl_certificate /etc/grommunio-common/ssl/server-bundle.pem;
-ssl_certificate_key /etc/grommunio-common/ssl/server.key;
-SSLEOF
-
-# ── Port remapping ─────────────────────────────────────────────────
-# Remap nginx: 80 -> 8080, 443 -> 8443
-for f in /usr/share/grommunio-common/nginx.conf /etc/nginx/nginx.conf; do
-  [ -f "$f" ] || continue
-  sed -i 's/\blisten\s\+80\b/listen 8080/g; s/\blisten\s\+\[::]\:80\b/listen [::]:8080/g' "$f"
-  sed -i 's/\blisten\s\+443\b/listen 8443/g; s/\blisten\s\+\[::]\:443\b/listen [::]:8443/g' "$f"
+echo "Waiting for database ${ARCHIVE_MYSQL_HOST}..."
+DB_READY=false
+for i in $(seq 1 60); do
+  if mariadb -u "${ARCHIVE_MYSQL_USER}" -h "${ARCHIVE_MYSQL_HOST}" -p"${ARCHIVE_MYSQL_PASS}" -e "SELECT 1" >/dev/null 2>&1; then
+    DB_READY=true
+    break
+  fi
+  echo "  attempt $i/60 - retrying in 2s..."
+  sleep 2
 done
+if [ "${DB_READY}" != "true" ]; then
+  echo "ERROR: database ${ARCHIVE_MYSQL_HOST} is not reachable" >&2
+  exit 1
+fi
+
+/home/configure.sh
+/home/entrypoint.sh
+
+# Secrets are only needed by the scripts above; do not hand them to every
+# supervised process (they would be visible in /proc/*/environ).
+unset MYSQL_PASS MYSQL_ROOT_PASS CHAT_MYSQL_PASS FILES_MYSQL_PASS OFFICE_MYSQL_PASS ARCHIVE_MYSQL_PASS \
+      ADMIN_PASS CHAT_ADMIN_PASS FILES_ADMIN_PASS ARCHIVE_ADMIN_PASS ARCHIVE_AUDIT_PASS KEYCLOAK_CLIENT_SECRET SSL_PASS
 
 exec /usr/local/bin/supervisord -n -c /etc/supervisord.conf

@@ -1,114 +1,120 @@
 #!/bin/bash
+# gromox-core container entrypoint.
+#
+#   1. environment defaults
+#   2. runtime directories (/run/*, no systemd-tmpfiles service here)
+#   3. wait for the core database
+#   4. one-time initialisation (db.sh, entrypoint.sh) guarded by marker files
+#   5. configure.sh: idempotent configuration, applied on EVERY start so a
+#      recreated container (image update, compose up) is fully configured
+#      from the environment and the persistent volumes
+#   6. exec supervisord as PID 1
 set -e
 
-# Source environment variables
-if [ -f /home/vars/var.env ]; then
-  set -a
-  . /home/vars/var.env
-  set +a
+# Defaults for variables that older var.env files do not define
+export LOGFILE="${LOGFILE:-/var/log/grommunio-setup.log}"
+export CHAT_CONFIG="${CHAT_CONFIG:-/etc/grommunio-chat/config.json}"
+export ENABLE_CHAT="${ENABLE_CHAT:-true}"
+export ENABLE_FILES="${ENABLE_FILES:-false}"
+export ENABLE_OFFICE="${ENABLE_OFFICE:-false}"
+export ENABLE_ARCHIVE="${ENABLE_ARCHIVE:-false}"
+export ENABLE_KEYCLOAK="${ENABLE_KEYCLOAK:-false}"
+export OFFICE_HOST="${OFFICE_HOST:-gromox-office}"
+export ARCHIVE_HOST="${ARCHIVE_HOST:-gromox-archive}"
+export SSL_INSTALL_TYPE="${SSL_INSTALL_TYPE:-0}"
+export CLEAR_DBS="${CLEAR_DBS:-false}"
+export MYSQL_HOST="${MYSQL_HOST:-gromox-db}"
+export MYSQL_USER="${MYSQL_USER:-grommunio}"
+export MYSQL_DB="${MYSQL_DB:-grommunio}"
+export INDEX_SCHEDULE="${INDEX_SCHEDULE-*/15 * * * *}"
+
+for v in FQDN DOMAIN MYSQL_PASS ADMIN_PASS; do
+  if [ -z "${!v:-}" ]; then
+    echo "ERROR: ${v} is not set (check var.env / var.local.env)" >&2
+    exit 1
+  fi
+done
+if [ "${ENABLE_CHAT}" = "true" ] && { [ -z "${CHAT_MYSQL_PASS:-}" ] || [ -z "${CHAT_ADMIN_PASS:-}" ]; }; then
+  echo "ERROR: ENABLE_CHAT=true requires CHAT_MYSQL_PASS and CHAT_ADMIN_PASS" >&2
+  exit 1
 fi
+# The shipped defaults are public knowledge: say so loudly on every start.
+for v in ADMIN_PASS CHAT_ADMIN_PASS FILES_ADMIN_PASS MYSQL_PASS CHAT_MYSQL_PASS FILES_MYSQL_PASS OFFICE_MYSQL_PASS ARCHIVE_MYSQL_PASS; do
+  case "${!v:-}" in
+    admin|grommunio|sfaedre3r32re23|Lu3s3WmFxXghtLwJnuqN)
+      echo "WARNING: ${v} still has the default value from var.env - change it in var.local.env before exposing this host" >&2 ;;
+  esac
+done
+
+touch "${LOGFILE}"
+chmod 0600 "${LOGFILE}"
 
 # Apply timezone from var.env (TIMEZONE); falls back to the image default if unset/invalid
-if [ -n "${TIMEZONE}" ] && [ -f "/usr/share/zoneinfo/${TIMEZONE}" ]; then
+if [ -n "${TIMEZONE:-}" ] && [ -f "/usr/share/zoneinfo/${TIMEZONE}" ]; then
   ln -sf "/usr/share/zoneinfo/${TIMEZONE}" /etc/localtime
   echo "${TIMEZONE}" > /etc/timezone
 fi
+
+# ── Runtime directories ───────────────────────────────────────────
+# /run is empty on every container start and there is no systemd to apply the
+# packages' tmpfiles.d entries (/run/gromox, /run/grommunio, /run/php-fpm,
+# /run/redis, ...). Without them admin-api, php-fpm, zcore, delivery, event
+# and timer cannot bind their sockets.
+systemd-tmpfiles --create >/dev/null 2>&1 || true
+install -d -m 0775 -o gromox -g gromox /run/gromox
+install -d -m 0775 -o grommunio -g nginx /run/grommunio
+install -d -m 0711 /run/php-fpm
+install -d -m 0755 -o redis -g redis /run/redis
+install -d -m 0770 -o gromox -g gromox /var/tmp/gromox-fpm
 
 # Use persistent marker directory (survives restarts with volumes)
 MARKER_DIR="/etc/gromox/.setup"
 mkdir -p "${MARKER_DIR}"
 
-# Allow forced reconfiguration via environment variable
-if [ "${FORCE_RECONFIG}" = "true" ]; then
-  rm -f "${MARKER_DIR}/db_done" "${MARKER_DIR}/entry_done"
+# Allow forced re-initialisation via environment variable (db.sh is state
+# checked and would only act again with CLEAR_DBS=true; leave it alone)
+if [ "${FORCE_RECONFIG:-false}" = "true" ]; then
+  echo "FORCE_RECONFIG=true: re-running one-time initialisation"
+  rm -f "${MARKER_DIR}/entry_done"
 fi
 
-# Wait for database to be reachable
+# ── Wait for database to be reachable ─────────────────────────────
 echo "Waiting for database ${MYSQL_HOST}..."
-for i in $(seq 1 30); do
-  mysql -u "${MYSQL_USER}" -h "${MYSQL_HOST}" -p"${MYSQL_PASS}" -e "SELECT 1" >/dev/null 2>&1 && break
-  echo "  attempt $i/30 - retrying in 2s..."
+DB_READY=false
+for i in $(seq 1 60); do
+  if mariadb -u "${MYSQL_USER}" -h "${MYSQL_HOST}" -p"${MYSQL_PASS}" -e "SELECT 1" >/dev/null 2>&1; then
+    DB_READY=true
+    break
+  fi
+  echo "  attempt $i/60 - retrying in 2s..."
   sleep 2
 done
+if [ "${DB_READY}" != "true" ]; then
+  echo "ERROR: database ${MYSQL_HOST} is not reachable" >&2
+  exit 1
+fi
 
-# Run DB initialization (once)
+# ── One-time initialisation / configuration ───────────────────────
 if [ ! -f "${MARKER_DIR}/db_done" ]; then
   /home/scripts/db.sh
   touch "${MARKER_DIR}/db_done"
 fi
 
-# Run entrypoint configuration (once)
+# Configuration derived from the environment, applied on every start.
+/home/configure.sh
+
 if [ ! -f "${MARKER_DIR}/entry_done" ]; then
+  # entrypoint.sh fails (and the container restarts) only when something
+  # essential could not be set up; the marker is then not written.
   /home/entrypoint.sh
   touch "${MARKER_DIR}/entry_done"
+  # the initialisation created the certificate: re-apply the parts that depend on it
+  /home/configure.sh
 fi
 
-# ── Port remapping ─────────────────────────────────────────────────
-# Remap nginx to listen on high ports (>1024) so no privileges needed.
-# The actual listen directives are in the included files under /usr/share/.
-
-# Grommunio web: 80 -> 8080, 443 -> 8443
-# Handle both "listen 80" and "listen [::]:80" formats
-for f in /usr/share/grommunio-common/nginx.conf /etc/nginx/nginx.conf; do
-  [ -f "$f" ] || continue
-  sed -i 's/\blisten\s\+80\b/listen 8080/g; s/\blisten\s\+\[::]\:80\b/listen [::]:8080/g' "$f"
-  sed -i 's/\blisten\s\+443\b/listen 8443/g; s/\blisten\s\+\[::]\:443\b/listen [::]:8443/g' "$f"
-done
-
-# Admin HTTP: 8080 -> 9080 (avoid conflict with remapped web port)
-sed -i 's/\blisten\s\+8080\b/listen 9080/g; s/\blisten\s\+\[::]\:8080\b/listen [::]:9080/g' \
-  /usr/share/grommunio-admin-common/nginx.conf
-
-# Admin HTTPS: 8443 -> 9443
-sed -i 's/\blisten\s\+8443\b/listen 9443/g; s/\blisten\s\+\[::]\:8443\b/listen [::]:9443/g' \
-  /usr/share/grommunio-admin-common/nginx-ssl.conf
-
-# Remap postfix to listen on high ports
-postconf -e "smtp_bind_address=" || true
-if [ -f /etc/postfix/master.cf ]; then
-  # smtp (25->2525), submission (587->2587), smtps (465->2465)
-  sed -i 's/^smtp\(\s\+\)inet/2525\1inet/' /etc/postfix/master.cf
-  sed -i 's/^submission\(\s\+\)inet/2587\1inet/' /etc/postfix/master.cf
-  sed -i 's/^smtps\(\s\+\)inet/2465\1inet/' /etc/postfix/master.cf
-fi
-
-# Remap gromox imap/pop3 ports
-if [ -f /etc/gromox/imap.cfg ]; then
-  sed -i 's/^listen_ssl_port\s*=\s*993/listen_ssl_port=2993/' /etc/gromox/imap.cfg
-  sed -i 's/^listen_port\s*=\s*143/listen_port=2143/' /etc/gromox/imap.cfg
-fi
-if [ -f /etc/gromox/pop3.cfg ]; then
-  sed -i 's/^listen_ssl_port\s*=\s*995/listen_ssl_port=2995/' /etc/gromox/pop3.cfg
-  sed -i 's/^listen_port\s*=\s*110/listen_port=2110/' /etc/gromox/pop3.cfg
-fi
-
-# ── Conditional services ──────────────────────────────────────────
-
-# Enable grommunio-chat if configured (check for chat config file existence)
-if [ -f "${CHAT_CONFIG}" ] && [ -f /etc/supervisor.d/grommunio-chat.conf ]; then
-  sed -i 's/autostart=false/autostart=true/' /etc/supervisor.d/grommunio-chat.conf
-fi
-
-# Set up certbot renewal if Let's Encrypt is enabled
-if [ "${SSL_INSTALL_TYPE}" = "2" ]; then
-  # On an actual renewal, rebuild the concatenated bundle that nginx and the
-  # gromox http/imap/pop3 daemons read (certbot only refreshes the files under
-  # /etc/letsencrypt/live, not this bundle) and restart the TLS services.
-  # $RENEWED_LINEAGE is set by certbot to the renewed cert's live directory.
-  cat > /usr/local/bin/grommunio-cert-deploy <<'DEPLOY'
-#!/bin/bash
-[ -n "${RENEWED_LINEAGE}" ] || exit 0
-cat "${RENEWED_LINEAGE}/cert.pem" "${RENEWED_LINEAGE}/fullchain.pem" > /etc/grommunio-common/ssl/server-bundle.pem
-cp -f "${RENEWED_LINEAGE}/privkey.pem" /etc/grommunio-common/ssl/server.key
-chown gromox:gromox /etc/grommunio-common/ssl/* 2>/dev/null || true
-supervisorctl restart gromox-http gromox-imap gromox-pop3 2>/dev/null || true
-DEPLOY
-  chmod +x /usr/local/bin/grommunio-cert-deploy
-
-  # Renew on the published HTTP port (host :80 -> container :8080). nginx owns
-  # 8080, so free it only while a renewal actually runs: the pre/post hooks
-  # fire only when at least one certificate is due.
-  echo "0 */12 * * * root certbot renew --quiet --standalone --http-01-port 8080 --pre-hook 'supervisorctl stop nginx' --deploy-hook /usr/local/bin/grommunio-cert-deploy --post-hook 'supervisorctl start nginx'" > /etc/cron.d/certbot-renew
-fi
+# Secrets are only needed by the scripts above; do not hand them to every
+# supervised process (they would be visible in /proc/*/environ).
+unset MYSQL_PASS MYSQL_ROOT_PASS CHAT_MYSQL_PASS FILES_MYSQL_PASS OFFICE_MYSQL_PASS ARCHIVE_MYSQL_PASS \
+      ADMIN_PASS CHAT_ADMIN_PASS FILES_ADMIN_PASS ARCHIVE_ADMIN_PASS ARCHIVE_AUDIT_PASS KEYCLOAK_CLIENT_SECRET SSL_PASS
 
 exec /usr/local/bin/supervisord -n -c /etc/supervisord.conf

@@ -5,3 +5,8 @@ cert.pem
 scripts/db-old.sh
 docker-compose-old.yml
 gromox-files
+# local deployment state
+var.local.env
+gromox_letsencrypt/
+variables_data/
+__pycache__/

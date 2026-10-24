@@ -2,88 +2,192 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # SPDX-FileCopyrightText: 2021 grommunio GmbH
 
-SSL_BUNDLE_T="/etc/grommunio-common/ssl/server-bundle.pem"
-SSL_KEY_T="/etc/grommunio-common/ssl/server.key"
+SSL_DIR="/etc/grommunio-common/ssl"
+SSL_BUNDLE_T="${SSL_DIR}/server-bundle.pem"
+SSL_KEY_T="${SSL_DIR}/server.key"
+# Built-in CA used for SSL_INSTALL_TYPE=0. Its certificate is the trust anchor
+# of all containers (and can be installed on clients); the key is root-only.
+SSL_CA_KEY="${SSL_DIR}/ca.key"
+SSL_CA_CRT="${SSL_DIR}/ca.pem"
+
+# Install the built-in CA as trust anchor inside this container (admin-api ->
+# chat, Files -> DAV, Node document server etc. connect to https://FQDN).
+# Only CA certificates are exported into the system bundle by
+# update-ca-certificates, hence the CA instead of the server certificate.
+trust_shared_cert()
+{
+  local anchor=/etc/pki/trust/anchors/grommunio-ca.pem
+  if [ -s "${SSL_CA_CRT}" ]; then
+    if ! cmp -s "${SSL_CA_CRT}" "${anchor}" 2>/dev/null; then
+      cp -f "${SSL_CA_CRT}" "${anchor}"
+      rm -f /etc/pki/trust/anchors/server-bundle.pem
+      update-ca-certificates >/dev/null 2>&1 || true
+    fi
+  elif [ -e "${anchor}" ] || [ -e /etc/pki/trust/anchors/server-bundle.pem ]; then
+    rm -f "${anchor}" /etc/pki/trust/anchors/server-bundle.pem
+    update-ca-certificates >/dev/null 2>&1 || true
+  fi
+}
 
 selfcert()
 {
-
-  openssl req -x509 -new -nodes -out "${SSL_BUNDLE_T}" -keyout "${SSL_KEY_T}" \
-          -subj "/CN=${FQDN}" -addext "subjectAltName = DNS:${FQDN}, DNS:autodiscover.${DOMAIN}" >>"${LOGFILE}" 2>&1
-
-  cp -f "${SSL_BUNDLE_T}" "/etc/pki/trust/anchors/"
-  update-ca-certificates
-
+  local csr ext
+  if [ ! -s "${SSL_CA_KEY}" ] || [ ! -s "${SSL_CA_CRT}" ]; then
+    openssl req -x509 -new -nodes -newkey rsa:3072 -sha256 -days 3650 \
+            -keyout "${SSL_CA_KEY}" -out "${SSL_CA_CRT}" \
+            -subj "/CN=grommunio container CA (${FQDN})" \
+            -addext "basicConstraints = critical, CA:TRUE, pathlen:0" \
+            -addext "keyUsage = critical, keyCertSign, cRLSign" >>"${LOGFILE}" 2>&1
+    chmod 0600 "${SSL_CA_KEY}"
+    chmod 0644 "${SSL_CA_CRT}"
+  fi
+  csr=$(mktemp); ext=$(mktemp)
+  printf 'subjectAltName = DNS:%s, DNS:autodiscover.%s\nbasicConstraints = critical, CA:FALSE\nkeyUsage = critical, digitalSignature, keyEncipherment\nextendedKeyUsage = serverAuth\n' \
+         "${FQDN}" "${DOMAIN}" > "${ext}"
+  openssl req -new -nodes -newkey rsa:3072 -sha256 -keyout "${SSL_KEY_T}" -out "${csr}" \
+          -subj "/CN=${FQDN}" >>"${LOGFILE}" 2>&1
+  openssl x509 -req -in "${csr}" -CA "${SSL_CA_CRT}" -CAkey "${SSL_CA_KEY}" -CAcreateserial \
+          -days 3650 -sha256 -extfile "${ext}" -out "${SSL_BUNDLE_T}" >>"${LOGFILE}" 2>&1
+  cat "${SSL_CA_CRT}" >> "${SSL_BUNDLE_T}"
+  rm -f "${csr}" "${ext}" "${SSL_DIR}/ca.srl"
+  chmod 0600 "${SSL_KEY_T}"
+  trust_shared_cert
 }
 
-fullca()
+# true when the shared certificate was issued by the built-in CA and expires
+# within 30 days (or is still an old 30-day self-signed one)
+builtin_cert_expiring()
 {
-
-  export SSL_COUNTRY SSL_STATE SSL_LOCALITY SSL_ORG SSL_OU SSL_EMAIL SSL_PASS SSL_DAYS
-  export FQDN DOMAIN SSL_BUNDLE_T SSL_KEY_T
-  if ! "$DATADIR/common/fullca.sh" >>"${LOGFILE}" 2>&1; then
-    echo "Certificate generation was not successful. Check "${LOGFILE}"."
+  local issuer casubj subj
+  issuer=$(openssl x509 -in "${SSL_BUNDLE_T}" -noout -issuer 2>/dev/null); issuer="${issuer#issuer=}"
+  subj=$(openssl x509 -in "${SSL_BUNDLE_T}" -noout -subject 2>/dev/null); subj="${subj#subject=}"
+  casubj=$(openssl x509 -in "${SSL_CA_CRT}" -noout -subject 2>/dev/null); casubj="${casubj#subject=}"
+  if [ -n "${casubj}" ] && [ "${issuer}" = "${casubj}" ]; then
+    :
+  elif [ "${issuer}" = "${subj}" ]; then
+    : # self-signed certificate from an earlier version
+  else
     return 1
   fi
-  cp -f "${SSL_BUNDLE_T}" "/etc/pki/trust/anchors/"
-  update-ca-certificates
-  return 0
+  ! openssl x509 -in "${SSL_BUNDLE_T}" -noout -checkend 2592000 >/dev/null 2>&1
+}
 
+# Variables for letsencrypt(): domains and contact address
+le_setup_vars()
+{
+  SSL_DOMAINS="${FQDN},autodiscover.${DOMAIN}"
+  [ -n "${MAIL_DOMAINS}" ] && SSL_DOMAINS="${SSL_DOMAINS},${MAIL_DOMAINS}"
+  SSL_EMAIL="${SSL_EMAIL:-admin@${DOMAIN}}"
+}
+
+# true when the last certbot attempt is more than an hour ago (or never ran)
+le_retry_due()
+{
+  local stamp=/etc/letsencrypt/.last-attempt
+  [ -f "${stamp}" ] || return 0
+  [ -n "$(find "${stamp}" -mmin +60 2>/dev/null)" ]
 }
 
 owncert() {
 
   if [ -z "${SSL_BUNDLE}" ] || [ -z "${SSL_KEY}" ] ; then
-    echo "TLS certificate and/or key not provided."
+    echo "TLS certificate and/or key not provided (SSL_BUNDLE / SSL_KEY)."
     return 1
   fi
-  cp -f "${SSL_BUNDLE}" "${SSL_BUNDLE_T}"
-  cp -f "${SSL_KEY}" "${SSL_KEY_T}"
-  cp -f "${SSL_BUNDLE_T}" "/etc/pki/trust/anchors/"
-  update-ca-certificates
+  if [ ! -r "${SSL_BUNDLE}" ] || [ ! -r "${SSL_KEY}" ]; then
+    echo "TLS certificate ${SSL_BUNDLE} or key ${SSL_KEY} not readable."
+    return 1
+  fi
+  if ! cmp -s "${SSL_BUNDLE}" "${SSL_BUNDLE_T}" || ! cmp -s "${SSL_KEY}" "${SSL_KEY_T}"; then
+    cp -f "${SSL_BUNDLE}" "${SSL_BUNDLE_T}"
+    cp -f "${SSL_KEY}" "${SSL_KEY_T}"
+    chmod 0600 "${SSL_KEY_T}"
+  fi
+  # The built-in CA is not used for this certificate. If the bundle carries CA
+  # certificates (a private CA chain), they become the trust anchor so that the
+  # containers can talk to https://FQDN; a public CA is trusted anyway.
+  rm -f "${SSL_CA_KEY}"
+  local chain tmp
+  tmp=$(mktemp); : > "${tmp}"
+  openssl crl2pkcs7 -nocrl -certfile "${SSL_BUNDLE_T}" 2>/dev/null | openssl pkcs7 -print_certs 2>/dev/null \
+    | awk '/-----BEGIN CERTIFICATE-----/{c=""} {c=c $0 "\n"} /-----END CERTIFICATE-----/{printf "%s\0", c}' \
+    | while IFS= read -r -d '' chain; do
+        if printf '%s' "${chain}" | openssl x509 -noout -ext basicConstraints 2>/dev/null | grep -q 'CA:TRUE'; then
+          printf '%s' "${chain}" >> "${tmp}"
+        fi
+      done
+  if [ -s "${tmp}" ]; then
+    cat "${tmp}" > "${SSL_CA_CRT}"; chmod 0644 "${SSL_CA_CRT}"
+  else
+    rm -f "${SSL_CA_CRT}"
+  fi
+  rm -f "${tmp}"
+  trust_shared_cert
   return 0
 
 }
 
 letsencrypt() {
-  if [ -f "/etc/letsencrypt/live/${FQDN}/cert.pem" ] && [ -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" ]; then
-      existing_domains=$(openssl x509 -in /etc/letsencrypt/live/${FQDN}/fullchain.pem -noout -text | \
-                        grep -oP '(?<=DNS:)[^,]*' | sort | tr '\n' ',' | sed 's/,$//')
-      desired_domains=$(echo "${SSL_DOMAINS}" | tr ' ' ',' | sed 's/,$//')
+  local desired_domains existing_domains
+  desired_domains=$(echo "${SSL_DOMAINS}" | tr ', ' '\n\n' | grep . | sort -u | paste -sd,)
+  if [ -f "/etc/letsencrypt/live/${FQDN}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" ]; then
+      existing_domains=$(openssl x509 -in "/etc/letsencrypt/live/${FQDN}/fullchain.pem" -noout -text | \
+                        grep -oP '(?<=DNS:)[^,\s]*' | sort -u | paste -sd,)
 
       if [ "$existing_domains" = "$desired_domains" ]; then
-          echo "Existing certificate for ${FQDN} covers all domains. Skipping Certbot."
-          cat "/etc/letsencrypt/live/${FQDN}/cert.pem" "/etc/letsencrypt/live/${FQDN}/fullchain.pem" > "${SSL_BUNDLE_T}"
+          echo "Existing certificate for ${FQDN} covers all domains. Skipping Certbot." | tee -a "${LOGFILE}"
+          cp -f "/etc/letsencrypt/live/${FQDN}/fullchain.pem" "${SSL_BUNDLE_T}"
           cp -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" "${SSL_KEY_T}"
+          chmod 0600 "${SSL_KEY_T}"
+          rm -f "${SSL_CA_CRT}" "${SSL_CA_KEY}"
+          trust_shared_cert
           return 0
       fi
   fi
 
-  echo "No existing certificates found for ${FQDN}, running Certbot..."
-  [ -e "/etc/nginx/conf.d/grommunio.conf" ] && mv "/etc/nginx/conf.d/grommunio.conf" "/etc/nginx/conf.d/grommunio.conf.grommunio-setup"
+  echo "No matching Let's Encrypt certificate for ${desired_domains}, running Certbot..." | tee -a "${LOGFILE}"
 
-  # nginx is not running during config phase, so port 8080 is free.
-  # Host publishes :80 -> container :8080, so the ACME http-01 server must
-  # bind 8080 (not the certbot default of 80) to receive the challenge.
+  # Remember whether a usable cert is already in place; if Certbot fails we keep
+  # it as fallback instead of overwriting it with a self-signed one.
+  HAD_CERT=0
+  if [ -s "${SSL_BUNDLE_T}" ] && [ -s "${SSL_KEY_T}" ]; then
+    HAD_CERT=1
+  fi
+
+  # nginx is not running during the init phase, so port 8081 is free.
+  # Host publishes :80 -> container :8081, so the ACME http-01 server must
+  # bind 8081 (not the certbot default of 80) to receive the challenge.
+  mkdir -p /etc/letsencrypt && touch /etc/letsencrypt/.last-attempt
   certbot certonly -n --standalone --agree-tos \
+    --allow-subset-of-names \
     --preferred-challenges http \
-    --http-01-port 8080 \
+    --http-01-port 8081 \
     --cert-name="${FQDN}" \
-    -d "${SSL_DOMAINS}" \
+    -d "${desired_domains}" \
     -m "${SSL_EMAIL}" >>"${LOGFILE}" 2>&1
   CERTBOT_EXIT=$?
 
-  [ -e "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" ] && mv "/etc/nginx/conf.d/grommunio.conf.grommunio-setup" "/etc/nginx/conf.d/grommunio.conf"
-
-  if [ $CERTBOT_EXIT -ne 0 ] || [ ! -f "/etc/letsencrypt/live/${FQDN}/cert.pem" ]; then
-    echo "Certbot failed (exit code: ${CERTBOT_EXIT}), falling back to self-signed certificate." | tee -a "${LOGFILE}"
+  if [ $CERTBOT_EXIT -ne 0 ] || [ ! -f "/etc/letsencrypt/live/${FQDN}/fullchain.pem" ]; then
+    if [ $HAD_CERT -eq 1 ]; then
+      echo "Certbot failed (exit code: ${CERTBOT_EXIT}), keeping existing certificate." | tee -a "${LOGFILE}"
+      return 0
+    fi
+    echo "Certbot failed (exit code: ${CERTBOT_EXIT}), falling back to a certificate from the built-in CA." | tee -a "${LOGFILE}"
     selfcert
     return 0
   fi
 
-  cat "/etc/letsencrypt/live/${FQDN}/cert.pem" "/etc/letsencrypt/live/${FQDN}/fullchain.pem" > "${SSL_BUNDLE_T}"
+  existing_domains=$(openssl x509 -in "/etc/letsencrypt/live/${FQDN}/fullchain.pem" -noout -text | \
+                    grep -oP '(?<=DNS:)[^,\s]*' | sort -u | paste -sd,)
+  if [ "$existing_domains" != "$desired_domains" ]; then
+    echo "WARNING: the issued certificate covers ${existing_domains} but not all of ${desired_domains} (DNS/port 80 check failed for the missing names)." | tee -a "${LOGFILE}"
+  fi
+  cp -f "/etc/letsencrypt/live/${FQDN}/fullchain.pem" "${SSL_BUNDLE_T}"
   cp -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" "${SSL_KEY_T}"
+  chmod 0600 "${SSL_KEY_T}"
+  rm -f "${SSL_CA_CRT}" "${SSL_CA_KEY}"
+  trust_shared_cert
 
-  # certbot renewal is handled via crontab in docker-entrypoint.sh
+  # certbot renewal is handled via cron (see configure.sh)
 
 }

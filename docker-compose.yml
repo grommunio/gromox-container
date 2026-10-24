@@ -20,141 +20,126 @@ volumes:
   office_mysql_data:
   archive_mysql_data:
   grommunio_admin_api:
+  grommunio_admin_license:
+  grommunio_admin_config:
   grommunio_antispam:
   grommunio_dav:
   grommunio_web:
+  grommunio_chat_config:
+  grommunio_chat_data:
+  postfix_spool:
+  redis_data:
   opensuse_data:
   gromox:
   gromox_config:
-  variables_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/variables_data
-  gromox_letsencrypt:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/gromox_letsencrypt
+  files_data:
+  office_data:
+  archive_data:
+
+# Environment: var.env holds the defaults and is tracked in git. Put your own
+# values (domain, passwords, feature flags) into var.local.env (git-ignored);
+# it is read after var.env and overrides it. Both files are passed to the
+# containers with env_file, no bind mount or pre-launch step is required.
+# variables_data/var.env is the location older versions used; it is still read
+# so an existing deployment keeps its values (precedence: var.env <
+# variables_data/var.env < var.local.env). Values are parsed by Compose:
+# write a literal "$" as "$$" or single-quote the value.
+x-env: &grommunio-env
+  - path: var.env
+    required: true
+  - path: variables_data/var.env
+    required: false
+  - path: var.local.env
+    required: false
+
+# All three MariaDB credentials below must match the corresponding
+# *_MYSQL_* values in var.env / var.local.env.
+x-mariadb: &mariadb
+  image: mariadb:11
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD-SHELL", "mariadb --host=localhost --user=\"$${MARIADB_USER}\" --password=\"$${MARIADB_PASSWORD}\" -e 'SELECT 1;'"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
+    start_period: 60s
 
 services:
   gromox-db:
-    image: mariadb:11
+    <<: *mariadb
     container_name: gromox-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
       MARIADB_DATABASE: grommunio
       MARIADB_USER: grommunio
       MARIADB_PASSWORD: Lu3s3WmFxXghtLwJnuqN
+      MARIADB_AUTO_UPGRADE: "1"
     volumes:
       - gromox_mysql_data:/var/lib/mysql
-    restart: on-failure
-    healthcheck:
-      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    dns:
-      - 127.0.0.11
-      - 8.8.8.8
     networks:
       grommunio:
         aliases:
           - gromox-db
 
   chat-db:
-    image: mariadb:11
+    <<: *mariadb
     container_name: chat-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
       MARIADB_DATABASE: grochat
       MARIADB_USER: grochat
       MARIADB_PASSWORD: grommunio
+      MARIADB_AUTO_UPGRADE: "1"
     volumes:
       - chat_mysql_data:/var/lib/mysql
-    restart: on-failure
-    healthcheck:
-      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    dns:
-      - 127.0.0.11
-      - 8.8.8.8
     networks:
       grommunio:
         aliases:
           - chat-db
 
   files-db:
-    image: mariadb:11
+    <<: *mariadb
     container_name: files-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
       MARIADB_DATABASE: grofiles
       MARIADB_USER: grofiles
       MARIADB_PASSWORD: grommunio
+      MARIADB_AUTO_UPGRADE: "1"
     volumes:
       - files_mysql_data:/var/lib/mysql
-    restart: on-failure
-    healthcheck:
-      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    dns:
-      - 127.0.0.11
-      - 8.8.8.8
     networks:
       grommunio:
         aliases:
           - files-db
 
   office-db:
-    image: mariadb:11
+    <<: *mariadb
     container_name: office-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
       MARIADB_DATABASE: groffice
       MARIADB_USER: groffice
       MARIADB_PASSWORD: grommunio
+      MARIADB_AUTO_UPGRADE: "1"
     volumes:
       - office_mysql_data:/var/lib/mysql
-    restart: on-failure
-    healthcheck:
-      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    dns:
-      - 127.0.0.11
-      - 8.8.8.8
     networks:
       grommunio:
         aliases:
           - office-db
 
   archive-db:
-    image: mariadb:11
+    <<: *mariadb
     container_name: archive-db
     environment:
       MARIADB_ROOT_PASSWORD: Lu3s3WmFxXghtLwJnuqN
       MARIADB_DATABASE: groarchive
       MARIADB_USER: groarchive
       MARIADB_PASSWORD: grommunio
+      MARIADB_AUTO_UPGRADE: "1"
     volumes:
       - archive_mysql_data:/var/lib/mysql
-    restart: on-failure
-    healthcheck:
-      test: mariadb --host=localhost --user=$${MARIADB_USER} --password=$${MARIADB_PASSWORD} -e 'SELECT 1;'
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    dns:
-      - 127.0.0.11
-      - 8.8.8.8
     networks:
       grommunio:
         aliases:
@@ -164,22 +149,30 @@ services:
     build:
       context: ./
       dockerfile: ./gromox-core/Dockerfile
-    restart: on-failure
+    container_name: gromox-core
+    restart: unless-stopped
     volumes:
       - opensuse_data:/data
-      - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
       - gromox_services:/home/gromox-services
       - grommunio_admin_api:/var/lib/grommunio-admin-api
+      - grommunio_admin_license:/etc/grommunio-admin-common/license
+      - grommunio_admin_config:/etc/grommunio-admin-api
       - grommunio_antispam:/var/lib/grommunio-antispam
       - grommunio_dav:/var/lib/grommunio-dav
       - grommunio_web:/var/lib/grommunio-web
+      - grommunio_chat_config:/etc/grommunio-chat
+      - grommunio_chat_data:/var/lib/grommunio-chat
+      - postfix_spool:/var/spool/postfix
+      - redis_data:/var/lib/redis
       - gromox:/var/lib/gromox
       - gromox_config:/etc/gromox
-      - gromox_letsencrypt:/etc/letsencrypt
+      # Let's Encrypt account + certificates. Kept on the host so the state
+      # can be inspected and backed up; ":z" relabels it on SELinux hosts.
+      - ./gromox_letsencrypt:/etc/letsencrypt:z
     ports:
       - "25:2525"    # SMTP
-      - "80:8080"    # HTTP / Letsencrypt challenges
+      - "80:8081"    # HTTP / Letsencrypt challenges
       - "443:8443"   # HTTPS / Grommunio Web
       - "465:2465"   # SMTPS
       - "993:2993"   # IMAPS
@@ -188,15 +181,17 @@ services:
       - "587:2587"   # SMTP Submission
       - "995:2995"   # POP3S
       - "8443:9443"  # Grommunio Admin / HTTPS alternative
-    dns:
-      - 127.0.0.11
-      - 8.8.8.8
     networks:
       grommunio:
         aliases:
           - gromox-core
-    env_file:
-      - var.env
+    env_file: *grommunio-env
+    healthcheck:
+      test: ["CMD", "/home/healthcheck.sh"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 300s
     depends_on:
       gromox-db:
         condition: service_healthy
@@ -213,23 +208,26 @@ services:
     build:
       context: ./
       dockerfile: ./gromox-archive/Dockerfile
-    restart: on-failure
+    container_name: gromox-archive
+    restart: unless-stopped
     volumes:
       - opensuse_data:/data
-      - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
+      - archive_data:/var/lib/grommunio-archive
     expose:
       - "8443"   # HTTPS (nginx)
       - "2693"   # Archive SMTP
-    dns:
-      - 127.0.0.11
-      - 8.8.8.8
     networks:
       grommunio:
         aliases:
           - gromox-archive
-    env_file:
-      - var.env
+    env_file: *grommunio-env
+    healthcheck:
+      test: ["CMD", "/home/healthcheck.sh"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 300s
     depends_on:
       gromox-db:
         condition: service_healthy
@@ -242,20 +240,24 @@ services:
     build:
       context: ./
       dockerfile: ./gromox-office/Dockerfile
-    restart: on-failure
+    container_name: gromox-office
+    restart: unless-stopped
     volumes:
       - opensuse_data:/data
-      - variables_data:/home/vars
       - cert_data:/etc/grommunio-common/ssl
-    dns:
-      - 127.0.0.11
-      - 8.8.8.8
+      - files_data:/var/lib/grommunio-files
+      - office_data:/var/lib/grommunio-office
     networks:
       grommunio:
         aliases:
           - gromox-office
-    env_file:
-      - var.env
+    env_file: *grommunio-env
+    healthcheck:
+      test: ["CMD", "/home/healthcheck.sh"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 600s
     depends_on:
       gromox-db:
         condition: service_healthy
