@@ -99,14 +99,24 @@ owncert() {
     return 1
   fi
   if ! cmp -s "${SSL_BUNDLE}" "${SSL_BUNDLE_T}" || ! cmp -s "${SSL_KEY}" "${SSL_KEY_T}"; then
-    cp -f "${SSL_BUNDLE}" "${SSL_BUNDLE_T}"
-    cp -f "${SSL_KEY}" "${SSL_KEY_T}"
+    # --remove-destination: never follow a link planted at the destination
+    cp -f --remove-destination "${SSL_BUNDLE}" "${SSL_BUNDLE_T}"
+    cp -f --remove-destination "${SSL_KEY}" "${SSL_KEY_T}"
     chmod 0600 "${SSL_KEY_T}"
   fi
-  # The built-in CA is not used for this certificate. If the bundle carries CA
-  # certificates (a private CA chain), they become the trust anchor so that the
-  # containers can talk to https://FQDN; a public CA is trusted anyway.
+  # The built-in CA is not used for this certificate. The trust anchor for
+  # in-container calls to https://FQDN (admin-api, Files, document server) is
+  # SSL_CA when given (e.g. the ca.crt of a Kubernetes TLS secret issued by a
+  # private cert-manager CA), otherwise any CA certificates carried in the
+  # bundle (a private CA chain); a public CA is trusted anyway.
   rm -f "${SSL_CA_KEY}"
+  if [ -n "${SSL_CA:-}" ] && [ -s "${SSL_CA}" ]; then
+    if ! cmp -s "${SSL_CA}" "${SSL_CA_CRT}" 2>/dev/null; then
+      cp -f "${SSL_CA}" "${SSL_CA_CRT}"; chmod 0644 "${SSL_CA_CRT}"
+    fi
+    trust_shared_cert
+    return 0
+  fi
   local chain tmp
   tmp=$(mktemp); : > "${tmp}"
   openssl crl2pkcs7 -nocrl -certfile "${SSL_BUNDLE_T}" 2>/dev/null | openssl pkcs7 -print_certs 2>/dev/null \
@@ -135,7 +145,7 @@ letsencrypt() {
                         grep -oP '(?<=DNS:)[^,\s]*' | sort -u | paste -sd,)
 
       if [ "$existing_domains" = "$desired_domains" ]; then
-          echo "Existing certificate for ${FQDN} covers all domains. Skipping Certbot." | tee -a "${LOGFILE}"
+          logmsg "Existing certificate for ${FQDN} covers all domains. Skipping Certbot."
           cp -f "/etc/letsencrypt/live/${FQDN}/fullchain.pem" "${SSL_BUNDLE_T}"
           cp -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" "${SSL_KEY_T}"
           chmod 0600 "${SSL_KEY_T}"
@@ -145,7 +155,7 @@ letsencrypt() {
       fi
   fi
 
-  echo "No matching Let's Encrypt certificate for ${desired_domains}, running Certbot..." | tee -a "${LOGFILE}"
+  logmsg "No matching Let's Encrypt certificate for ${desired_domains}, running Certbot..."
 
   # Remember whether a usable cert is already in place; if Certbot fails we keep
   # it as fallback instead of overwriting it with a self-signed one.
@@ -169,10 +179,10 @@ letsencrypt() {
 
   if [ $CERTBOT_EXIT -ne 0 ] || [ ! -f "/etc/letsencrypt/live/${FQDN}/fullchain.pem" ]; then
     if [ $HAD_CERT -eq 1 ]; then
-      echo "Certbot failed (exit code: ${CERTBOT_EXIT}), keeping existing certificate." | tee -a "${LOGFILE}"
+      logmsg "Certbot failed (exit code: ${CERTBOT_EXIT}), keeping existing certificate."
       return 0
     fi
-    echo "Certbot failed (exit code: ${CERTBOT_EXIT}), falling back to a certificate from the built-in CA." | tee -a "${LOGFILE}"
+    logmsg "Certbot failed (exit code: ${CERTBOT_EXIT}), falling back to a certificate from the built-in CA."
     selfcert
     return 0
   fi
@@ -180,7 +190,7 @@ letsencrypt() {
   existing_domains=$(openssl x509 -in "/etc/letsencrypt/live/${FQDN}/fullchain.pem" -noout -text | \
                     grep -oP '(?<=DNS:)[^,\s]*' | sort -u | paste -sd,)
   if [ "$existing_domains" != "$desired_domains" ]; then
-    echo "WARNING: the issued certificate covers ${existing_domains} but not all of ${desired_domains} (DNS/port 80 check failed for the missing names)." | tee -a "${LOGFILE}"
+    logmsg "WARNING: the issued certificate covers ${existing_domains} but not all of ${desired_domains} (DNS/port 80 check failed for the missing names)."
   fi
   cp -f "/etc/letsencrypt/live/${FQDN}/fullchain.pem" "${SSL_BUNDLE_T}"
   cp -f "/etc/letsencrypt/live/${FQDN}/privkey.pem" "${SSL_KEY_T}"
@@ -190,4 +200,60 @@ letsencrypt() {
 
   # certbot renewal is handled via cron (see configure.sh)
 
+}
+
+# Containers that do not own the certificate (archive, office)
+
+# wait_for_shared_cert: compose mode (SSL_INSTALL_TYPE 0/2). gromox-core is the
+# certificate authority of the deployment and writes bundle/key into the shared
+# cert volume; wait for it before anything uses it.
+wait_for_shared_cert()
+{
+  local i
+  for i in $(seq 1 300); do
+    if [ -s "${SSL_BUNDLE_T}" ] && [ -s "${SSL_KEY_T}" ]; then
+      break
+    fi
+    [ $((i % 15)) -eq 1 ] && logmsg "Waiting for shared certificate from gromox-core (${i}/300)..."
+    sleep 2
+  done
+  if [ ! -s "${SSL_BUNDLE_T}" ] || [ ! -s "${SSL_KEY_T}" ]; then
+    logmsg "ERROR: shared certificate not available from gromox-core after timeout."
+    return 1
+  fi
+  # With the built-in CA (type 0) the trust anchor must be in place before
+  # Files/Archive start talking to https://FQDN. On an upgrade the volume may
+  # hold an old self-signed bundle without ca.pem until gromox-core has
+  # replaced it; give it a little time, then continue regardless.
+  if [ "${SSL_INSTALL_TYPE:-0}" = "0" ]; then
+    for i in $(seq 1 60); do
+      [ -s "${SSL_CA_CRT}" ] && openssl verify -CAfile "${SSL_CA_CRT}" "${SSL_BUNDLE_T}" >/dev/null 2>&1 && break
+      [ $((i % 15)) -eq 1 ] && logmsg "Waiting for the built-in CA from gromox-core (${i}/60)..."
+      sleep 2
+    done
+  fi
+  return 0
+}
+
+# install_certificate: entry point for archive/office. With SSL_INSTALL_TYPE=3
+# (Kubernetes: the TLS secret is mounted into every pod) the certificate is
+# installed from SSL_BUNDLE/SSL_KEY like in gromox-core; otherwise the shared
+# volume written by gromox-core is used.
+install_certificate()
+{
+  # root-owned, not writable by the service users (the emptyDir Kubernetes
+  # mounts here would otherwise be world-writable)
+  install -d -m 0755 -o root -g root "${SSL_DIR}"
+  if [ "${SSL_INSTALL_TYPE:-0}" = "3" ] && [ -r "${SSL_BUNDLE:-}" ] && [ -r "${SSL_KEY:-}" ]; then
+    if ! owncert; then
+      logmsg "ERROR: SSL_INSTALL_TYPE=3: could not install ${SSL_BUNDLE} / ${SSL_KEY}"
+      return 1
+    fi
+    chmod 0644 "${SSL_BUNDLE_T}"
+    return 0
+  fi
+  # docker-compose: SSL_INSTALL_TYPE=3 names files mounted into gromox-core only;
+  # this container gets the certificate through the shared volume like for type 0/2
+  [ "${SSL_INSTALL_TYPE:-0}" = "3" ] && logmsg "SSL_INSTALL_TYPE=3 but ${SSL_BUNDLE:-SSL_BUNDLE} is not readable here; using the certificate shared by gromox-core"
+  wait_for_shared_cert
 }
