@@ -1,0 +1,143 @@
+{{- /*
+db-sync keeps the database users in step with the chart secret. With the
+bundled MariaDB it runs pre-upgrade only (the initdb script handles the first
+start; a pre-install hook would wait for a database that does not exist yet),
+with externalDatabase.manage=true pre-install and pre-upgrade.
+It never runs as a post-* hook: Helm executes those only after the release is
+ready, and the application pods cannot become ready without their users.
+*/ -}}
+{{- $manageExternal := and (not .Values.mariadb.enabled) .Values.externalDatabase.manage -}}
+{{- if and .Values.dbSync.enabled (or .Values.mariadb.enabled $manageExternal) }}
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $ext := .Values.externalDatabase -}}
+{{- $hooks := ternary "pre-install,pre-upgrade" "pre-upgrade" $manageExternal -}}
+{{- $s := include "grommunio.secrets" . | fromJson -}}
+{{- if not .Values.secrets.existingSecret }}
+# Hook-scoped copy of the passwords: hooks run before the release manifests are
+# applied, so the regular Secret may still hold the previous values.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $fullname }}-db-sync
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "db-sync") | nindent 4 }}
+  annotations:
+    helm.sh/hook: {{ $hooks }}
+    helm.sh/hook-weight: "-6"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+type: Opaque
+stringData:
+  MYSQL_PASS: {{ $s.MYSQL_PASS | quote }}
+  CHAT_MYSQL_PASS: {{ $s.CHAT_MYSQL_PASS | quote }}
+  FILES_MYSQL_PASS: {{ $s.FILES_MYSQL_PASS | quote }}
+  OFFICE_MYSQL_PASS: {{ $s.OFFICE_MYSQL_PASS | quote }}
+  ARCHIVE_MYSQL_PASS: {{ $s.ARCHIVE_MYSQL_PASS | quote }}
+---
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $fullname }}-db-sync
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "db-sync") | nindent 4 }}
+  annotations:
+    helm.sh/hook: {{ $hooks }}
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: {{ add .Values.dbSync.waitSeconds 300 }}
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "grommunio.selectorLabels" (dict "root" . "component" "db-sync") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      # no serviceAccountName: as a pre-install hook this Job runs before the
+      # release's ServiceAccount exists; it needs no API access anyway
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with include "grommunio.hookImagePullSecrets" . }}{{ . | nindent 6 }}{{ end }}
+      containers:
+        - name: db-sync
+          image: {{ include "grommunio.image" (dict "root" . "component" "mariadb") }}
+          imagePullPolicy: {{ .Values.image.mariadb.pullPolicy }}
+          securityContext:
+            {{- include "grommunio.restrictedSecurityContext" (dict "uid" 999 "readOnly" true) | nindent 12 }}
+          env:
+            - name: DB_HOST
+              value: {{ include "grommunio.dbHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "grommunio.dbPort" . | quote }}
+            - name: WAIT_SECONDS
+              value: {{ .Values.dbSync.waitSeconds | quote }}
+            - name: DB_ADMIN_USER
+              value: {{ ternary "root" $ext.adminUser .Values.mariadb.enabled | quote }}
+            - name: MYSQL_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "grommunio.rootSecretName" . }}
+                  key: MYSQL_ROOT_PASS
+            {{- range $comp, $env := dict "core" "CORE" "chat" "CHAT" "files" "FILES" "office" "OFFICE" "archive" "ARCHIVE" }}
+            {{- $cfg := index $ext $comp }}
+            - name: GROMMUNIO_{{ $env }}_DB
+              value: {{ $cfg.database | quote }}
+            - name: GROMMUNIO_{{ $env }}_USER
+              value: {{ $cfg.user | quote }}
+            - name: GROMMUNIO_{{ $env }}_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ ternary (include "grommunio.secretName" $) (printf "%s-db-sync" $fullname) (ne $.Values.secrets.existingSecret "") }}
+                  key: {{ ternary "MYSQL_PASS" (printf "%s_MYSQL_PASS" $env) (eq $comp "core") }}
+            {{- end }}
+          command: ["/bin/bash", "-ec"]
+          args:
+            - |
+              echo "Waiting for ${DB_HOST}:${DB_PORT} (up to ${WAIT_SECONDS}s)..."
+              waited=0
+              until out=$(mariadb -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_ADMIN_USER}" -e "SELECT 1" 2>&1); do
+                case "${out}" in
+                  *"ERROR 1045"*|*"ERROR 1698"*|*"Access denied"*)
+                    # wrong admin credentials do not fix themselves: fail loudly
+                    echo "ERROR: ${out}" >&2; exit 1 ;;
+                esac
+                sleep 5; waited=$((waited+5))
+                if [ "${waited}" -ge "${WAIT_SECONDS}" ]; then
+                  # Never block an upgrade on a database outage (the upgrade may be the
+                  # fix). The application pods wait for the database themselves and the
+                  # users are synchronised again on the next upgrade.
+                  echo "WARNING: database not reachable after ${WAIT_SECONDS}s, skipping the user synchronisation" >&2
+                  exit 0
+                fi
+              done
+              for comp in CORE CHAT FILES OFFICE ARCHIVE; do
+                db_var="GROMMUNIO_${comp}_DB"; user_var="GROMMUNIO_${comp}_USER"; pass_var="GROMMUNIO_${comp}_PASS"
+                db="${!db_var}"; user="${!user_var}"; pass="${!pass_var}"
+                [ -n "${db}" ] && [ -n "${user}" ] && [ -n "${pass}" ] || continue
+                pass_sql="${pass//\\/\\\\}"; pass_sql="${pass_sql//\'/\'\'}"
+                echo "syncing ${db} / ${user}"
+                mariadb -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_ADMIN_USER}" <<EOSQL
+              CREATE DATABASE IF NOT EXISTS \`${db}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+              CREATE USER IF NOT EXISTS '${user}'@'%' IDENTIFIED BY '${pass_sql}';
+              ALTER USER '${user}'@'%' IDENTIFIED BY '${pass_sql}';
+              GRANT ALL PRIVILEGES ON \`${db}\`.* TO '${user}'@'%';
+              EOSQL
+              done
+              mariadb -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_ADMIN_USER}" -e "FLUSH PRIVILEGES"
+              echo "db-sync done"
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { memory: 256Mi }
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

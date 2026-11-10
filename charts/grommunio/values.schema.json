@@ -1,0 +1,898 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "grommunio Helm chart values",
+  "type": "object",
+  "properties": {
+    "global": {
+      "type": "object",
+      "properties": {
+        "clusterDomain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "storageClass": {
+          "type": "string"
+        },
+        "imageRegistry": {
+          "type": "string"
+        },
+        "imagePullSecrets": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "edition": {
+          "type": "string",
+          "enum": [
+            "community",
+            "supported"
+          ]
+        },
+        "imageCredentials": {
+          "type": "object",
+          "properties": {
+            "username": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "core": {
+          "$ref": "#/$defs/image"
+        },
+        "archive": {
+          "$ref": "#/$defs/image"
+        },
+        "office": {
+          "$ref": "#/$defs/image"
+        },
+        "mariadb": {
+          "$ref": "#/$defs/image"
+        }
+      }
+    },
+    "grommunio": {
+      "type": "object",
+      "required": [
+        "fqdn",
+        "domain"
+      ],
+      "properties": {
+        "fqdn": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9.-]+$",
+          "description": "Public host name of the server"
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9.-]+$",
+          "description": "Primary mail domain"
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "relayhost": {
+          "type": "string"
+        },
+        "indexSchedule": {
+          "type": "string"
+        },
+        "x500": {
+          "type": "string"
+        },
+        "extraEnv": {
+          "type": "array"
+        },
+        "extraEnvFrom": {
+          "type": "array"
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "chat": {
+          "$ref": "#/$defs/toggle"
+        },
+        "files": {
+          "$ref": "#/$defs/toggle"
+        },
+        "office": {
+          "$ref": "#/$defs/toggle"
+        },
+        "archive": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "retentionDays": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "indexerDeltaInterval": {
+              "type": "string"
+            },
+            "indexerMainInterval": {
+              "type": "string"
+            },
+            "encryptionKey": {
+              "type": "object",
+              "properties": {
+                "existingSecret": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "keycloak": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "url": {
+              "type": "string"
+            },
+            "realm": {
+              "type": "string"
+            },
+            "clientId": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {
+          "type": "string"
+        },
+        "autoGenerate": {
+          "type": "boolean"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "existingSecretVersion": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        }
+      }
+    },
+    "mariadb": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "existingRootSecret": {
+          "type": "string"
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "innodbBufferPoolSize": {
+              "type": "string"
+            },
+            "maxConnections": {
+              "type": "integer",
+              "minimum": 10
+            },
+            "extra": {
+              "type": "string"
+            }
+          }
+        },
+        "persistence": {
+          "$ref": "#/$defs/persistence"
+        },
+        "resources": {
+          "type": "object"
+        }
+      }
+    },
+    "externalDatabase": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "manage": {
+          "type": "boolean"
+        },
+        "adminSecret": {
+          "type": "string"
+        },
+        "adminUser": {
+          "type": "string"
+        },
+        "core": {
+          "$ref": "#/$defs/dbcoords"
+        },
+        "chat": {
+          "$ref": "#/$defs/dbcoords"
+        },
+        "files": {
+          "$ref": "#/$defs/dbcoords"
+        },
+        "office": {
+          "$ref": "#/$defs/dbcoords"
+        },
+        "archive": {
+          "$ref": "#/$defs/dbcoords"
+        }
+      }
+    },
+    "tls": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "selfSigned",
+            "existingSecret",
+            "certManager"
+          ]
+        },
+        "secretName": {
+          "type": "string"
+        },
+        "existingSecret": {
+          "type": "string"
+        },
+        "extraDnsNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rolloutOnChange": {
+          "type": "boolean"
+        },
+        "selfSigned": {
+          "type": "object",
+          "properties": {
+            "caCommonName": {
+              "type": "string"
+            },
+            "validityDays": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "certManager": {
+          "type": "object",
+          "properties": {
+            "issuerRef": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "Issuer",
+                    "ClusterIssuer"
+                  ]
+                },
+                "group": {
+                  "type": "string"
+                }
+              }
+            },
+            "duration": {
+              "type": "string"
+            },
+            "renewBefore": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "existingSecret"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "existingSecret": {
+                "minLength": 1
+              }
+            },
+            "required": [
+              "existingSecret"
+            ]
+          }
+        }
+      ]
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "core": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "LoadBalancer",
+                "NodePort",
+                "ClusterIP"
+              ]
+            },
+            "externalTrafficPolicy": {
+              "type": "string",
+              "enum": [
+                "Local",
+                "Cluster"
+              ]
+            },
+            "loadBalancerIP": {
+              "type": "string"
+            },
+            "loadBalancerClass": {
+              "type": "string"
+            },
+            "loadBalancerSourceRanges": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "externalIPs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "annotations": {
+              "type": "object"
+            },
+            "ipFamilyPolicy": {
+              "type": "string",
+              "enum": [
+                "",
+                "SingleStack",
+                "PreferDualStack",
+                "RequireDualStack"
+              ]
+            },
+            "ipFamilies": {
+              "type": "array"
+            },
+            "ports": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  },
+                  "nodePort": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "admin": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "LoadBalancer",
+                "NodePort",
+                "ClusterIP"
+              ]
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        },
+        "internal": {
+          "type": "object",
+          "properties": {
+            "clusterIP": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "className": {
+          "type": "string"
+        },
+        "controller": {
+          "type": "string",
+          "enum": [
+            "nginx",
+            "traefik",
+            "haproxy",
+            "none"
+          ]
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "extraHosts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "secretName": {
+              "type": "string"
+            }
+          }
+        },
+        "admin": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "host": {
+              "type": "string"
+            },
+            "annotations": {
+              "type": "object"
+            }
+          }
+        },
+        "realIpFrom": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "hairpin": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "hostAliases",
+                "dns"
+              ]
+            }
+          }
+        },
+        "trustedProxyCIDRs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "internalRelay": {
+          "type": "object",
+          "properties": {
+            "port": {
+              "type": "integer",
+              "minimum": 1025,
+              "maximum": 65535
+            },
+            "allowExternalRecipients": {
+              "type": "boolean"
+            }
+          }
+        },
+        "postfixMynetworks": {
+          "type": "string"
+        },
+        "nginxResolver": {
+          "type": "string"
+        },
+        "ipv6": {
+          "type": "boolean"
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "core": {
+          "type": "object",
+          "properties": {
+            "allowedSourceRanges": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "admin": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "array"
+            },
+            "allowAll": {
+              "type": "boolean"
+            }
+          }
+        },
+        "ingressController": {
+          "type": "object"
+        },
+        "egress": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "extraCIDRs": {
+              "type": "array"
+            }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "core": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/persistence"
+            },
+            "state": {
+              "$ref": "#/$defs/persistence"
+            },
+            "config": {
+              "$ref": "#/$defs/persistence"
+            }
+          }
+        },
+        "archive": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/persistence"
+            }
+          }
+        },
+        "office": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "$ref": "#/$defs/persistence"
+            },
+            "cacheSizeLimit": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "core": {
+      "$ref": "#/$defs/workload"
+    },
+    "archive": {
+      "$ref": "#/$defs/workload"
+    },
+    "office": {
+      "$ref": "#/$defs/workload"
+    },
+    "podSecurity": {
+      "type": "object",
+      "properties": {
+        "hostUsers": {
+          "type": "boolean"
+        },
+        "allowPrivilegeEscalation": {
+          "type": "boolean"
+        },
+        "seccompProfile": {
+          "type": "object"
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "add": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "logToStdout": {
+          "type": "boolean"
+        }
+      }
+    },
+    "dbSync": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "waitSeconds": {
+          "type": "integer",
+          "minimum": 10
+        }
+      }
+    },
+    "maintenance": {
+      "type": "object",
+      "properties": {
+        "forceReconfig": {
+          "type": "boolean"
+        },
+        "clearDbs": {
+          "type": "boolean"
+        },
+        "archiveNewKey": {
+          "type": "boolean"
+        },
+        "dbWaitSeconds": {
+          "type": "integer",
+          "minimum": 10
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "retentionDays": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "persistence": {
+          "$ref": "#/$defs/persistence"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "initialDump": {
+          "type": "boolean"
+        }
+      }
+    },
+    "tests": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object"
+    },
+    "extraObjects": {
+      "type": "array"
+    }
+  },
+  "$defs": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "registry": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^(sha256:[a-f0-9]{64})?$"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "toggle": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "dbcoords": {
+      "type": "object",
+      "properties": {
+        "database": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_]+$"
+        },
+        "user": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "size": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(Ei|Pi|Ti|Gi|Mi|Ki|E|P|T|G|M|K)?$"
+        },
+        "storageClass": {
+          "type": "string"
+        },
+        "existingClaim": {
+          "type": "string"
+        },
+        "annotations": {
+          "type": "object"
+        }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "properties": {
+        "periodSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "properties": {
+        "resources": {
+          "type": "object"
+        },
+        "probes": {
+          "type": "object",
+          "properties": {
+            "startup": {
+              "$ref": "#/$defs/probe"
+            },
+            "liveness": {
+              "$ref": "#/$defs/probe"
+            },
+            "readiness": {
+              "$ref": "#/$defs/probe"
+            }
+          }
+        },
+        "terminationGracePeriodSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nodeSelector": {
+          "type": "object"
+        },
+        "tolerations": {
+          "type": "array"
+        },
+        "affinity": {
+          "type": "object"
+        },
+        "priorityClassName": {
+          "type": "string"
+        },
+        "podAnnotations": {
+          "type": "object"
+        },
+        "podLabels": {
+          "type": "object"
+        },
+        "extraVolumes": {
+          "type": "array"
+        },
+        "extraVolumeMounts": {
+          "type": "array"
+        },
+        "extraEnv": {
+          "type": "array"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{{- if .Values.ingress.enabled }}
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $ing := .Values.ingress -}}
+{{- $tlsSecret := default (include "grommunio.tlsSecretName" .) $ing.tls.secretName -}}
+{{- $hosts := concat (list .Values.grommunio.fqdn (printf "autodiscover.%s" .Values.grommunio.domain)) $ing.extraHosts | uniq -}}
+{{- /* The core nginx terminates TLS itself (8443): the controller must re-encrypt */ -}}
+{{- $reencrypt := dict -}}
+{{- if eq $ing.controller "nginx" -}}
+{{- $reencrypt = dict "nginx.ingress.kubernetes.io/backend-protocol" "HTTPS" "nginx.ingress.kubernetes.io/proxy-body-size" "512m" "nginx.ingress.kubernetes.io/proxy-read-timeout" "3600" "nginx.ingress.kubernetes.io/proxy-send-timeout" "3600" "nginx.ingress.kubernetes.io/proxy-request-buffering" "off" -}}
+{{- else if eq $ing.controller "traefik" -}}
+{{- $reencrypt = dict "traefik.ingress.kubernetes.io/service.serversscheme" "https" -}}
+{{- else if eq $ing.controller "haproxy" -}}
+{{- $reencrypt = dict "haproxy.org/server-ssl" "true" -}}
+{{- end -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "core") | nindent 4 }}
+  annotations:
+    {{- range $k, $v := $reencrypt }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+    {{- with $ing.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- with $ing.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if $ing.tls.enabled }}
+  tls:
+    - hosts:
+        {{- range $hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ $tlsSecret }}
+  {{- end }}
+  rules:
+    {{- range $hosts }}
+    - host: {{ . | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-core-internal
+                port:
+                  name: https
+    {{- end }}
+{{- if $ing.admin.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}-admin
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "core") | nindent 4 }}
+  annotations:
+    {{- range $k, $v := $reencrypt }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+    {{- with $ing.admin.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- with $ing.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if $ing.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ $ing.admin.host | quote }}
+      secretName: {{ $tlsSecret }}
+  {{- end }}
+  rules:
+    - host: {{ $ing.admin.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-core-internal
+                port:
+                  name: admin
+{{- end }}
+{{- end }}

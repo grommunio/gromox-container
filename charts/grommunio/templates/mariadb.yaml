@@ -1,0 +1,228 @@
+{{- if .Values.mariadb.enabled }}
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $m := .Values.mariadb -}}
+{{- $ext := .Values.externalDatabase -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-mariadb-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+data:
+  grommunio.cnf: |
+    [mysqld]
+    character-set-server = utf8mb4
+    collation-server = utf8mb4_general_ci
+    skip-name-resolve
+    max_connections = {{ $m.config.maxConnections }}
+    innodb_buffer_pool_size = {{ $m.config.innodbBufferPoolSize }}
+    performance_schema = OFF
+    {{- with $m.config.extra }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  # Sourced by the official entrypoint on an EMPTY data directory only.
+  # Credentials arrive as environment variables (never in this ConfigMap).
+  10-grommunio.sh: |
+    #!/bin/bash
+    set -e
+    for comp in CORE CHAT FILES OFFICE ARCHIVE; do
+      db_var="GROMMUNIO_${comp}_DB"; user_var="GROMMUNIO_${comp}_USER"; pass_var="GROMMUNIO_${comp}_PASS"
+      db="${!db_var}"; user="${!user_var}"; pass="${!pass_var}"
+      [ -n "${db}" ] && [ -n "${user}" ] && [ -n "${pass}" ] || continue
+      echo "grommunio: creating database ${db} for ${user}"
+      pass_sql="${pass//\\/\\\\}"; pass_sql="${pass_sql//\'/\'\'}"
+      docker_process_sql <<EOSQL
+    CREATE DATABASE IF NOT EXISTS \`${db}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+    CREATE USER IF NOT EXISTS '${user}'@'%' IDENTIFIED BY '${pass_sql}';
+    ALTER USER '${user}'@'%' IDENTIFIED BY '${pass_sql}';
+    GRANT ALL PRIVILEGES ON \`${db}\`.* TO '${user}'@'%';
+    EOSQL
+    done
+    docker_process_sql <<EOSQL
+    FLUSH PRIVILEGES;
+    EOSQL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-mariadb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-mariadb-hl
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+  ports:
+    - name: mysql
+      port: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}-mariadb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ $fullname }}-mariadb-hl
+  updateStrategy:
+    type: RollingUpdate
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      {{- include "grommunio.selectorLabels" (dict "root" . "component" "mariadb") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grommunio.selectorLabels" (dict "root" . "component" "mariadb") | nindent 8 }}
+        {{- with $m.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ printf "%s%s%s" $m.config.innodbBufferPoolSize ($m.config.maxConnections | toString) $m.config.extra | sha256sum }}
+        {{- with $m.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "grommunio.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with include "grommunio.imagePullSecrets" . }}{{ . | nindent 6 }}{{ end }}
+      {{- with $m.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $m.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $m.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $m.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      containers:
+        - name: mariadb
+          image: {{ include "grommunio.image" (dict "root" . "component" "mariadb") }}
+          imagePullPolicy: {{ .Values.image.mariadb.pullPolicy }}
+          securityContext:
+            {{- include "grommunio.restrictedSecurityContext" (dict "uid" 999 "readOnly" true) | nindent 12 }}
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "grommunio.rootSecretName" . }}
+                  key: MYSQL_ROOT_PASS
+            - name: MARIADB_AUTO_UPGRADE
+              value: "1"
+            - name: MARIADB_DISABLE_UPGRADE_BACKUP
+              value: "1"
+            {{- range $comp, $env := dict "core" "CORE" "chat" "CHAT" "files" "FILES" "office" "OFFICE" "archive" "ARCHIVE" }}
+            {{- $cfg := index $ext $comp }}
+            - name: GROMMUNIO_{{ $env }}_DB
+              value: {{ $cfg.database | quote }}
+            - name: GROMMUNIO_{{ $env }}_USER
+              value: {{ $cfg.user | quote }}
+            - name: GROMMUNIO_{{ $env }}_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "grommunio.secretName" $ }}
+                  key: {{ ternary "MYSQL_PASS" (printf "%s_MYSQL_PASS" $env) (eq $comp "core") }}
+            {{- end }}
+          ports:
+            - name: mysql
+              containerPort: 3306
+          startupProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            periodSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml $m.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: config
+              mountPath: /etc/mysql/conf.d/grommunio.cnf
+              subPath: grommunio.cnf
+            - name: config
+              mountPath: /docker-entrypoint-initdb.d/10-grommunio.sh
+              subPath: 10-grommunio.sh
+            - name: run
+              mountPath: /run/mysqld
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $fullname }}-mariadb-config
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        {{- if $m.persistence.existingClaim }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ $m.persistence.existingClaim }}
+        {{- end }}
+  {{- if not $m.persistence.existingClaim }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        {{- with $m.persistence.annotations }}
+        annotations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- $sc := default .Values.global.storageClass $m.persistence.storageClass }}
+        {{- if $sc }}
+        storageClassName: {{ ternary "" $sc (eq $sc "-") | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $m.persistence.size }}
+  {{- end }}
+{{- end }}

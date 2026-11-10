@@ -1,0 +1,89 @@
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $p := .Values.persistence.core -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}-core
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "core") | nindent 4 }}
+spec:
+  # gromox keeps mailboxes in sqlite files on the data volume: exactly one pod.
+  replicas: 1
+  serviceName: {{ $fullname }}-core-hl
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      {{- include "grommunio.selectorLabels" (dict "root" . "component" "core") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grommunio.selectorLabels" (dict "root" . "component" "core") | nindent 8 }}
+        {{- with .Values.core.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- include "grommunio.checksumAnnotations" . | nindent 8 }}
+        {{- with .Values.core.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "grommunio.podCommon" (dict "root" . "component" "core") | nindent 6 }}
+      containers:
+        - name: core
+          image: {{ include "grommunio.image" (dict "root" . "component" "core") }}
+          imagePullPolicy: {{ .Values.image.core.pullPolicy }}
+          securityContext:
+            {{- include "grommunio.appSecurityContext" . | nindent 12 }}
+          {{- include "grommunio.appEnv" (dict "root" . "component" "core") | nindent 10 }}
+          ports:
+            - { name: smtp,        containerPort: 2525, protocol: TCP }
+            - { name: smtp-int,    containerPort: {{ .Values.network.internalRelay.port }}, protocol: TCP }
+            - { name: http,        containerPort: 8081, protocol: TCP }
+            - { name: https,       containerPort: 8443, protocol: TCP }
+            - { name: smtps,       containerPort: 2465, protocol: TCP }
+            - { name: submission,  containerPort: 2587, protocol: TCP }
+            - { name: imap,        containerPort: 2143, protocol: TCP }
+            - { name: imaps,       containerPort: 2993, protocol: TCP }
+            - { name: pop3,        containerPort: 2110, protocol: TCP }
+            - { name: pop3s,       containerPort: 2995, protocol: TCP }
+            - { name: admin,       containerPort: 9443, protocol: TCP }
+          {{- include "grommunio.probes" (dict "root" . "component" "core") | nindent 10 }}
+          resources:
+            {{- toYaml .Values.core.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "grommunio.commonVolumeMounts" . | nindent 12 }}
+            - name: data
+              mountPath: /var/lib/gromox
+            - { name: state, subPath: admin-api-data, mountPath: /var/lib/grommunio-admin-api }
+            - { name: state, subPath: antispam,       mountPath: /var/lib/grommunio-antispam }
+            - { name: state, subPath: dav,            mountPath: /var/lib/grommunio-dav }
+            - { name: state, subPath: web,            mountPath: /var/lib/grommunio-web }
+            - { name: state, subPath: chat-data,      mountPath: /var/lib/grommunio-chat }
+            - { name: state, subPath: redis,          mountPath: /var/lib/redis }
+            - { name: state, subPath: postfix-spool,  mountPath: /var/spool/postfix }
+            - { name: config, subPath: etc-gromox,       mountPath: /etc/gromox }
+            - { name: config, subPath: admin-api-config, mountPath: /etc/grommunio-admin-api }
+            - { name: config, subPath: license,          mountPath: /etc/grommunio-admin-common/license }
+            - { name: config, subPath: chat-config,      mountPath: /etc/grommunio-chat }
+            {{- with .Values.core.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- include "grommunio.commonVolumes" . | nindent 8 }}
+        {{- include "grommunio.pvcVolume" (dict "name" "data" "spec" $p.data) | nindent 8 }}
+        {{- include "grommunio.pvcVolume" (dict "name" "state" "spec" $p.state) | nindent 8 }}
+        {{- include "grommunio.pvcVolume" (dict "name" "config" "spec" $p.config) | nindent 8 }}
+        {{- with .Values.core.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- $templates := list (include "grommunio.pvcTemplate" (dict "root" . "name" "data" "spec" $p.data)) (include "grommunio.pvcTemplate" (dict "root" . "name" "state" "spec" $p.state)) (include "grommunio.pvcTemplate" (dict "root" . "name" "config" "spec" $p.config)) }}
+  {{- if (join "" $templates | trim) }}
+  volumeClaimTemplates:
+    {{- range $templates }}{{ . | nindent 4 }}{{ end }}
+  {{- end }}

@@ -1,0 +1,177 @@
+{{- if .Values.backup.enabled }}
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $b := .Values.backup -}}
+{{- $ext := .Values.externalDatabase -}}
+{{- if not $b.persistence.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fullname }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "backup") | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- $sc := default .Values.global.storageClass $b.persistence.storageClass }}
+  {{- if $sc }}
+  storageClassName: {{ ternary "" $sc (eq $sc "-") | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $b.persistence.size }}
+---
+{{- end }}
+# Logical dumps of the five databases. Run one ad hoc before an upgrade with:
+#   kubectl create job --from=cronjob/{{ $fullname }}-backup pre-upgrade-$(date +%s)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $fullname }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "backup") | nindent 4 }}
+spec:
+  schedule: {{ $b.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 7200
+      template:
+        metadata:
+          labels:
+            {{- include "grommunio.selectorLabels" (dict "root" . "component" "backup") | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "grommunio.serviceAccountName" . }}
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          {{- with include "grommunio.imagePullSecrets" $ }}{{ . | nindent 10 }}{{ end }}
+          containers:
+            - name: backup
+              image: {{ include "grommunio.image" (dict "root" . "component" "mariadb") }}
+              imagePullPolicy: {{ .Values.image.mariadb.pullPolicy }}
+              securityContext:
+                {{- include "grommunio.restrictedSecurityContext" (dict "uid" 999 "readOnly" true) | nindent 16 }}
+              env:
+                - name: DB_HOST
+                  value: {{ include "grommunio.dbHost" . | quote }}
+                - name: DB_PORT
+                  value: {{ include "grommunio.dbPort" . | quote }}
+                - name: RETENTION_DAYS
+                  value: {{ $b.retentionDays | quote }}
+                {{- range $comp, $env := dict "core" "CORE" "chat" "CHAT" "files" "FILES" "office" "OFFICE" "archive" "ARCHIVE" }}
+                {{- $cfg := index $ext $comp }}
+                - name: GROMMUNIO_{{ $env }}_DB
+                  value: {{ $cfg.database | quote }}
+                - name: GROMMUNIO_{{ $env }}_USER
+                  value: {{ $cfg.user | quote }}
+                - name: GROMMUNIO_{{ $env }}_PASS
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "grommunio.secretName" $ }}
+                      key: {{ ternary "MYSQL_PASS" (printf "%s_MYSQL_PASS" $env) (eq $comp "core") }}
+                {{- end }}
+              command: ["/bin/bash", "-eo", "pipefail", "-c"]
+              args:
+                - |
+                  {{- include "grommunio.backupScript" . | nindent 18 }}
+              resources:
+                {{- toYaml $b.resources | nindent 16 }}
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: {{ default (printf "%s-backup" $fullname) $b.persistence.existingClaim }}
+            - name: tmp
+              emptyDir: {}
+{{- if $b.initialDump }}
+---
+# Runs once per install/upgrade: takes a dump right away and, as a side effect,
+# binds the backup PVC (a WaitForFirstConsumer StorageClass would otherwise keep
+# it Pending until the first scheduled run and block `helm --wait`).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $fullname }}-backup-init-{{ .Release.Revision }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "backup") | nindent 4 }}
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "grommunio.selectorLabels" (dict "root" . "component" "backup") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "grommunio.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with include "grommunio.imagePullSecrets" $ }}{{ . | nindent 6 }}{{ end }}
+      containers:
+        - name: backup
+          image: {{ include "grommunio.image" (dict "root" . "component" "mariadb") }}
+          imagePullPolicy: {{ .Values.image.mariadb.pullPolicy }}
+          securityContext:
+            {{- include "grommunio.restrictedSecurityContext" (dict "uid" 999 "readOnly" true) | nindent 12 }}
+          env:
+            - name: DB_HOST
+              value: {{ include "grommunio.dbHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "grommunio.dbPort" . | quote }}
+            - name: RETENTION_DAYS
+              value: {{ $b.retentionDays | quote }}
+            {{- range $comp, $env := dict "core" "CORE" "chat" "CHAT" "files" "FILES" "office" "OFFICE" "archive" "ARCHIVE" }}
+            {{- $cfg := index $ext $comp }}
+            - name: GROMMUNIO_{{ $env }}_DB
+              value: {{ $cfg.database | quote }}
+            - name: GROMMUNIO_{{ $env }}_USER
+              value: {{ $cfg.user | quote }}
+            - name: GROMMUNIO_{{ $env }}_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "grommunio.secretName" $ }}
+                  key: {{ ternary "MYSQL_PASS" (printf "%s_MYSQL_PASS" $env) (eq $comp "core") }}
+            {{- end }}
+          command: ["/bin/bash", "-eo", "pipefail", "-c"]
+          args:
+            - |
+              echo "waiting for the database"
+              for i in $(seq 1 120); do
+                MYSQL_PWD="${GROMMUNIO_CORE_PASS}" mariadb -h "${DB_HOST}" -P "${DB_PORT}" -u "${GROMMUNIO_CORE_USER}" -e "SELECT 1" >/dev/null 2>&1 && break
+                sleep 10
+              done
+              {{- include "grommunio.backupScript" . | nindent 14 }}
+          resources:
+            {{- toYaml $b.resources | nindent 12 }}
+          volumeMounts:
+            - name: backup
+              mountPath: /backup
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: backup
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-backup" $fullname) $b.persistence.existingClaim }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+{{- end }}

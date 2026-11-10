@@ -1,0 +1,41 @@
+apiVersion: v2
+name: grommunio
+description: >-
+  grommunio groupware (gromox MAPI/IMAP/POP3/EAS/DAV server, webmail, admin UI,
+  antispam, optional chat, Files, Office and mail archive) on Kubernetes,
+  built from the gromox-container images.
+type: application
+# Chart version: bump MINOR for new images/appVersion, MAJOR for breaking values changes.
+version: 0.2.0
+# Image tag used when image.<component>.tag is empty. Must exist for all three
+# images (gromox-core, gromox-archive, gromox-office) in the configured registry.
+appVersion: "2026.11"
+kubeVersion: ">=1.28.0-0"
+home: https://grommunio.com/
+icon: https://grommunio.com/wp-content/uploads/2021/09/grommunio_logo_light.svg
+sources:
+  - https://github.com/grommunio/gromox-container
+keywords:
+  - groupware
+  - mail
+  - exchange
+  - mapi
+  - activesync
+  - caldav
+  - carddav
+  - imap
+  - smtp
+maintainers:
+  - name: grommunio GmbH
+    url: https://grommunio.com/
+annotations:
+  artifacthub.io/license: AGPL-3.0-or-later
+  artifacthub.io/images: |
+    - name: gromox-core
+      image: container.grommunio.com/community/gromox-core:2026.11
+    - name: gromox-archive
+      image: container.grommunio.com/community/gromox-archive:2026.11
+    - name: gromox-office
+      image: container.grommunio.com/community/gromox-office:2026.11
+    - name: mariadb
+      image: container.grommunio.com/community/mariadb:11.8

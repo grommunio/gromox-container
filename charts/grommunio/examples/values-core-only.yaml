@@ -1,0 +1,15 @@
+# Mail and groupware only: no chat, Files, Office or archive pods.
+grommunio:
+  fqdn: mail.example.com
+  domain: example.com
+
+features:
+  chat:    { enabled: false }
+  files:   { enabled: false }
+  office:  { enabled: false }
+  archive: { enabled: false }
+
+core:
+  resources:
+    requests: { cpu: "1", memory: 2Gi }
+    limits:   { memory: 4Gi }
