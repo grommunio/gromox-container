@@ -1,0 +1,95 @@
+# Images and Helm chart for container.grommunio.com.
+#
+# Images are built and pushed on every release tag (the tag must equal the
+# chart's appVersion, e.g. 2026.11) for both channels:
+#   container.grommunio.com/community/gromox-*   (public)
+#   container.grommunio.com/supported/gromox-*   (subscription repository)
+# The chart is linted on every change under charts/ and pushed as an OCI
+# artifact to container.grommunio.com/community/charts on tags chart-<version>.
+#
+# Build and publish jobs run on a runner with a local docker daemon
+# (runner tag "grommunio-container-build").
+#
+# CI/CD variables (Settings -> CI/CD -> Variables, masked/protected):
+#   REGISTRY_USER / REGISTRY_PASSWORD  push credentials for $REGISTRY (also used
+#                                      for the Harbor API: images and the chart
+#                                      are pushed and signed in the "staging"
+#                                      project, then copied into community/supported)
+#   SUPPORTED_CREDENTIALS              type "File": zypper credentials of the
+#                                      subscription used for supported builds
+#   COSIGN_KEY                         type "File": cosign private key (signs
+#                                      every pushed image and the chart)
+#   COSIGN_PASSWORD                    password of COSIGN_KEY
+# The runner needs docker (with buildx), helm and cosign.
+stages: [lint, build, publish]
+
+variables:
+  REGISTRY: container.grommunio.com
+  DOCKER_BUILDKIT: "1"
+
+.helm-image: &helm-image
+  image:
+    name: alpine/helm:3.19.0
+    entrypoint: [""]
+
+lint-shell:
+  stage: lint
+  image: koalaman/shellcheck-alpine:stable
+  script:
+    - shellcheck -S error common/helpers common/ssl_setup common/*.sh gromox-*/*.sh gromox-core/scripts/*.sh tools/*.sh
+  rules:
+    - changes: [common/**, gromox-*/**, tools/**]
+
+lint-chart:
+  stage: lint
+  <<: *helm-image
+  script:
+    - helm lint --strict charts/grommunio --set grommunio.fqdn=mail.example.com --set grommunio.domain=example.com
+    - |
+      for v in "" \
+        "--set tls.mode=certManager --set tls.certManager.issuerRef.name=x" \
+        "--set mariadb.enabled=false --set externalDatabase.host=db --set externalDatabase.manage=true --set externalDatabase.adminSecret=s" \
+        "--set ingress.enabled=true --set ingress.realIpFrom[0]=10.0.0.0/8 --set networkPolicy.ingressController.namespaceSelector.matchLabels.kubernetes\.io/metadata\.name=ingress-nginx --set ingress.admin.enabled=true --set ingress.admin.host=admin.example.com" \
+        "--set features.archive.enabled=false --set features.files.enabled=false --set features.office.enabled=false --set features.chat.enabled=false" \
+        "--set backup.enabled=true --set service.core.type=ClusterIP --set service.core.externalIPs[0]=203.0.113.1" \
+        "--set global.edition=supported --set global.imageCredentials.username=robot\$supported+customer-1234 --set global.imageCredentials.password=x"; do
+        helm template t charts/grommunio --set grommunio.fqdn=mail.example.com --set grommunio.domain=example.com $v > /dev/null
+      done
+  rules:
+    - changes: [charts/**]
+
+.publish-base:
+  tags: [grommunio-container-build]
+  before_script:
+    # per-job docker/cosign credentials (jobs may run concurrently on the runner)
+    - export DOCKER_CONFIG="$CI_PROJECT_DIR/.docker"
+    - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+    - export HARBOR_USER="$REGISTRY_USER" HARBOR_PASSWORD="$REGISTRY_PASSWORD"
+  after_script:
+    - rm -rf "$CI_PROJECT_DIR/.docker"
+
+.build-image:
+  extends: .publish-base
+  stage: build
+  script:
+    - BUILD_ID="$(date -u +%Y%m%d%H%M)"
+    - tools/publish-images.sh -r "$REGISTRY" -s staging -c "$CHANNEL" -t "$CI_COMMIT_TAG" -b "$BUILD_ID" --latest --no-cache core archive office
+  rules:
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_TAG !~ /^chart-/
+
+build-community:
+  extends: .build-image
+  variables: { CHANNEL: community }
+build-supported:
+  extends: .build-image
+  variables: { CHANNEL: supported }
+  # SUPPORTED_CREDENTIALS (File variable) is read by tools/publish-images.sh
+
+publish-chart:
+  extends: .publish-base
+  stage: publish
+  script:
+    - export HELM_REGISTRY_CONFIG="$DOCKER_CONFIG/config.json"
+    - tools/publish-chart.sh -r "$REGISTRY" -s staging -p community -v "${CI_COMMIT_TAG#chart-}"
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^chart-/
