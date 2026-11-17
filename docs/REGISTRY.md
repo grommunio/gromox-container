@@ -8,7 +8,7 @@ grommunio publishes the images and the Helm chart on
 | `community/gromox-{core,archive,office}` | public, no login | built from the grommunio community packages |
 | `community/mariadb` | public | mirror of `docker.io/library/mariadb:11.8` used by the Helm chart |
 | `community/charts/grommunio` | public | Helm chart (OCI) |
-| `supported/gromox-{core,archive,office}` | grommunio subscription customers | built from the grommunio supported packages |
+| `supported/gromox-{core,archive,office}` | grommunio subscription credentials | built from the grommunio supported packages |
 
 ## Tags
 
@@ -52,8 +52,9 @@ signature with the same key.
 docker pull container.grommunio.com/community/gromox-core:2026.11
 helm install grommunio oci://container.grommunio.com/community/charts/grommunio -f values.yaml
 
-# supported: credentials (robot account) are provided with the subscription
-docker login container.grommunio.com -u 'robot$supported+<customer>'
+# supported: log in with your grommunio subscription credentials
+# (the same as for the supported package repositories)
+docker login container.grommunio.com -u '<subscription user>'
 docker pull container.grommunio.com/supported/gromox-core:2026.11
 ```
 

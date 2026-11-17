@@ -85,8 +85,9 @@ OpenShift: the application pods need the `anyuid` SCC.
   `cosign verify --key cosign.pub <image>` (key and fingerprint: `docs/REGISTRY.md`
   in the gromox-container repository) or enforce in the cluster with Kyverno
   `verifyImages` / Sigstore policy-controller.
-* Supported-edition pull credentials are per-customer, pull-only robot
-  accounts with an expiry date. Prefer a self-managed `imagePullSecrets`
+* Supported-edition pull credentials are the customer's grommunio
+  subscription credentials, limited to pull and valid while the subscription
+  is active. Prefer a self-managed `imagePullSecrets`
   entry over `global.imageCredentials` so the password is not stored in the
   Helm release.
 * MariaDB: `container.grommunio.com/community/mariadb`, a daily mirror of the

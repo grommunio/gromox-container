@@ -84,13 +84,13 @@ keeps the last 14 builds of each image. Pin a digest
 (`image.<component>.digest`) for reproducible deployments, and keep a copy in
 your own registry if you need a build for longer.
 
-Supported edition, with the robot account you received from grommunio:
+Supported edition, with your grommunio subscription credentials:
 
 ```yaml
 global:
   edition: supported
   imageCredentials:
-    username: robot$supported+customer-1234
+    username: <subscription user>
     password: "<secret>"
 ```
 
@@ -101,7 +101,7 @@ and reference it instead:
 ```bash
 kubectl -n grommunio create secret docker-registry grommunio-registry \
   --docker-server=container.grommunio.com \
-  --docker-username='robot$supported+customer-1234' --docker-password='<secret>'
+  --docker-username='<subscription user>' --docker-password='<secret>'
 ```
 
 ```yaml

@@ -30,7 +30,7 @@ global:
   # Secret yourself (kubectl create secret docker-registry ...) and list it in
   # imagePullSecrets.
   imageCredentials:
-    username: ""          # robot account, e.g. robot$supported+customer-1234
+    username: ""          # grommunio subscription user name
     password: ""
     email: ""
   imagePullSecrets: []
