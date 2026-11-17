@@ -9,14 +9,14 @@
 . /home/common/helpers
 . /home/common/ssl_setup
 
-log() { echo "$(date '+%Y-%m-%d %H:%M:%S') init: $*" | tee -a "${LOGFILE}"; }
+log() { logmsg "init: $*"; }
 
 memory_check()
 {
   local HAVE
-  HAVE=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
-  if [ -n "${HAVE}" ] && [ "${HAVE}" -lt 4000000 ]; then
-    log "WARNING: only $((HAVE/1024)) MB RAM available, grommunio recommends at least 4096 MB"
+  HAVE=$(memory_total_mb)
+  if [ -n "${HAVE}" ] && [ "${HAVE}" -lt 3900 ]; then
+    log "WARNING: only ${HAVE} MB RAM available (host or container limit), grommunio recommends at least 4096 MB"
   fi
 }
 memory_check
@@ -33,7 +33,7 @@ else
 fi
 
 # ── TLS certificate (shared with archive/office via the cert volume) ─
-mkdir -p /etc/grommunio-common/ssl
+install -d -m 0755 -o root -g root /etc/grommunio-common/ssl
 if [ "${SSL_INSTALL_TYPE}" = "2" ]; then
   le_setup_vars
   letsencrypt

@@ -1,0 +1,30 @@
+# Bare metal / k3s without a LoadBalancer controller: publish the mail and web
+# ports on an address of the node (a spare IP configured on the node works;
+# kube-proxy answers for it, the host's own services on other addresses are
+# not affected). externalTrafficPolicy Local keeps the real client addresses.
+grommunio:
+  fqdn: mail.example.com
+  domain: example.com
+
+service:
+  core:
+    type: ClusterIP
+    externalIPs:
+      - 203.0.113.10
+    externalTrafficPolicy: Local
+    ports:
+      # admin UI on https://mail.example.com:8443 (docker-compose parity)
+      admin: { enabled: true, port: 8443 }
+
+# k3s ships the local-path provisioner (hostPath-backed, single node).
+# For anything beyond a test, use a real StorageClass.
+global:
+  storageClass: local-path
+
+persistence:
+  core:
+    data: { size: 20Gi }
+  archive:
+    data: { size: 20Gi }
+  office:
+    files: { size: 20Gi }

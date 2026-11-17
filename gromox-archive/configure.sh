@@ -7,7 +7,7 @@
 . /home/common/helpers
 . /home/common/ssl_setup
 
-log() { echo "$(date '+%Y-%m-%d %H:%M:%S') configure: $*" | tee -a "${LOGFILE}"; }
+log() { logmsg "configure: $*"; }
 
 trust_shared_cert
 
@@ -78,6 +78,8 @@ done
 # The encryption key lives with the store on the archive_data volume; piler
 # reads it from its compiled-in path.
 ln -sfn /var/lib/grommunio-archive/grommunio-archive.key /etc/grommunio-archive/grommunio-archive.key
+
+redirect_nginx_logs
 
 if ! nginx -t >/dev/null 2>&1; then
   log "WARNING: nginx configuration test failed:"

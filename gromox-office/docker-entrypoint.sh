@@ -22,6 +22,13 @@ export OFFICE_MYSQL_USER="${OFFICE_MYSQL_USER:-groffice}"
 export OFFICE_MYSQL_DB="${OFFICE_MYSQL_DB:-groffice}"
 export CORE_HOST="${CORE_HOST:-gromox-core}"
 export TRUSTED_PROXIES="${TRUSTED_PROXIES:-172.28.0.0/24 fd00:1::/64}"
+# Kubernetes settings (see docs/kubernetes.md); the defaults keep the docker-compose behaviour
+export LOG_TO_STDOUT="${LOG_TO_STDOUT:-false}"
+export CERT_WATCH="${CERT_WATCH:-false}"
+export CERT_WATCH_RELOAD="${CERT_WATCH_RELOAD:-nginx}"
+export CERT_WATCH_RESTART="${CERT_WATCH_RESTART:-ds-docservice ds-converter}"
+
+. /home/common/helpers
 
 for v in FQDN DOMAIN; do
   if [ -z "${!v:-}" ]; then
@@ -38,8 +45,16 @@ if [ "${ENABLE_OFFICE}" = "true" ] && [ -z "${OFFICE_MYSQL_PASS:-}" ]; then
   exit 1
 fi
 
-touch "${LOGFILE}"
-chmod 0600 "${LOGFILE}"
+if [ "${LOGFILE}" != "/dev/stdout" ] && [ "${LOGFILE}" != "/dev/stderr" ]; then
+  touch "${LOGFILE}"
+  chmod 0600 "${LOGFILE}"
+fi
+setup_stdout_logging
+# the TLS working directory must not be writable by the service users
+install -d -m 0755 -o root -g root /etc/grommunio-common/ssl
+for p in /var/lib/grommunio-files /var/lib/grommunio-office /var/lib/rabbitmq /var/lib/redis; do
+  seed_volume "$p"
+done
 
 # Apply timezone from var.env (TIMEZONE); falls back to the image default if unset/invalid
 if [ -n "${TIMEZONE:-}" ] && [ -f "/usr/share/zoneinfo/${TIMEZONE}" ]; then
@@ -54,31 +69,25 @@ install -d -m 0755 -o redis -g redis /run/redis
 install -d -m 0755 -o rabbitmq -g rabbitmq /run/rabbitmq
 
 . /home/common/ssl_setup
-wait_for_shared_cert
+install_certificate || exit 1
 
-wait_for_db() {
-  local host="$1" user="$2" pass="$3" i
-  echo "Waiting for database ${host}..."
-  for i in $(seq 1 60); do
-    MYSQL_PWD="${pass}" mariadb -u "${user}" -h "${host}" -e "SELECT 1" >/dev/null 2>&1 && return 0
-    echo "  attempt $i/60 - retrying in 2s..."
-    sleep 2
-  done
-  echo "ERROR: database ${host} is not reachable" >&2
-  return 1
-}
 [ "${ENABLE_FILES}" = "true" ]  && wait_for_db "${FILES_MYSQL_HOST}" "${FILES_MYSQL_USER}" "${FILES_MYSQL_PASS}"
 [ "${ENABLE_OFFICE}" = "true" ] && wait_for_db "${OFFICE_MYSQL_HOST}" "${OFFICE_MYSQL_USER}" "${OFFICE_MYSQL_PASS}"
+add_hosts_alias "${FQDN}" "autodiscover.${DOMAIN}" || exit 1
 
 # Shared secret between Files and the document server (persisted with the office data)
 install -d -m 0750 -o groffice -g groffice /var/lib/grommunio-office
 if [ "${ENABLE_OFFICE}" = "true" ]; then
-  if [ ! -s /var/lib/grommunio-office/.jwt_secret ]; then
-    head -c 48 /dev/urandom | base64 | tr -d '/+=\n' > /var/lib/grommunio-office/.jwt_secret
-    chmod 0600 /var/lib/grommunio-office/.jwt_secret
+  # OFFICE_JWT_SECRET from the environment (Kubernetes secret) takes precedence
+  # over the one persisted with the office data (docker-compose).
+  if [ -z "${OFFICE_JWT_SECRET:-}" ]; then
+    if [ ! -s /var/lib/grommunio-office/.jwt_secret ]; then
+      head -c 48 /dev/urandom | base64 | tr -d '/+=\n' > /var/lib/grommunio-office/.jwt_secret
+      chmod 0600 /var/lib/grommunio-office/.jwt_secret
+    fi
+    OFFICE_JWT_SECRET=$(cat /var/lib/grommunio-office/.jwt_secret)
   fi
   export OFFICE_JWT_SECRET
-  OFFICE_JWT_SECRET=$(cat /var/lib/grommunio-office/.jwt_secret)
 fi
 
 # Temporary redis for occ (Files uses Redis for memcache/locking)
@@ -94,6 +103,7 @@ fi
 
 /home/entrypoint.sh
 /home/configure.sh
+enable_program cert-watch "${CERT_WATCH}"
 
 if [ -n "${REDIS_PID}" ]; then
   redis-cli -h 127.0.0.1 shutdown nosave >/dev/null 2>&1 || kill "${REDIS_PID}" 2>/dev/null || true

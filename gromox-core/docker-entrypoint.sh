@@ -27,6 +27,14 @@ export MYSQL_HOST="${MYSQL_HOST:-gromox-db}"
 export MYSQL_USER="${MYSQL_USER:-grommunio}"
 export MYSQL_DB="${MYSQL_DB:-grommunio}"
 export INDEX_SCHEDULE="${INDEX_SCHEDULE-*/15 * * * *}"
+# Kubernetes settings (see docs/kubernetes.md); the defaults keep the docker-compose behaviour
+export LOG_TO_STDOUT="${LOG_TO_STDOUT:-false}"
+export CERT_WATCH="${CERT_WATCH:-false}"
+export CERT_OWNER="gromox:gromox"
+export CERT_WATCH_RELOAD="${CERT_WATCH_RELOAD:-nginx postfix}"
+export CERT_WATCH_RESTART="${CERT_WATCH_RESTART:-gromox-http gromox-imap gromox-pop3}"
+
+. /home/common/helpers
 
 for v in FQDN DOMAIN MYSQL_PASS ADMIN_PASS; do
   if [ -z "${!v:-}" ]; then
@@ -46,8 +54,24 @@ for v in ADMIN_PASS CHAT_ADMIN_PASS FILES_ADMIN_PASS MYSQL_PASS CHAT_MYSQL_PASS 
   esac
 done
 
-touch "${LOGFILE}"
-chmod 0600 "${LOGFILE}"
+if [ "${LOGFILE}" != "/dev/stdout" ] && [ "${LOGFILE}" != "/dev/stderr" ]; then
+  touch "${LOGFILE}"
+  chmod 0600 "${LOGFILE}"
+fi
+setup_stdout_logging
+# the TLS working directory must not be writable by the service users
+install -d -m 0755 -o root -g root /etc/grommunio-common/ssl
+
+# ── Persistent volumes ────────────────────────────────────────────
+# Restore the package-provided content into volumes that are still empty
+# (Kubernetes PVCs; no-op for Docker named volumes, which are populated
+# from the image on first use).
+for p in /etc/gromox /etc/grommunio-admin-api /etc/grommunio-admin-common/license \
+         /etc/grommunio-chat /var/lib/grommunio-chat \
+         /var/lib/grommunio-admin-api /var/lib/grommunio-antispam /var/lib/grommunio-dav \
+         /var/lib/grommunio-web /var/lib/redis /var/lib/gromox /var/spool/postfix; do
+  seed_volume "$p"
+done
 
 # Apply timezone from var.env (TIMEZONE); falls back to the image default if unset/invalid
 if [ -n "${TIMEZONE:-}" ] && [ -f "/usr/share/zoneinfo/${TIMEZONE}" ]; then
@@ -79,20 +103,7 @@ if [ "${FORCE_RECONFIG:-false}" = "true" ]; then
 fi
 
 # ── Wait for database to be reachable ─────────────────────────────
-echo "Waiting for database ${MYSQL_HOST}..."
-DB_READY=false
-for i in $(seq 1 60); do
-  if mariadb -u "${MYSQL_USER}" -h "${MYSQL_HOST}" -p"${MYSQL_PASS}" -e "SELECT 1" >/dev/null 2>&1; then
-    DB_READY=true
-    break
-  fi
-  echo "  attempt $i/60 - retrying in 2s..."
-  sleep 2
-done
-if [ "${DB_READY}" != "true" ]; then
-  echo "ERROR: database ${MYSQL_HOST} is not reachable" >&2
-  exit 1
-fi
+wait_for_db "${MYSQL_HOST}" "${MYSQL_USER}" "${MYSQL_PASS}" || exit 1
 
 # ── One-time initialisation / configuration ───────────────────────
 if [ ! -f "${MARKER_DIR}/db_done" ]; then
@@ -112,9 +123,11 @@ if [ ! -f "${MARKER_DIR}/entry_done" ]; then
   /home/configure.sh
 fi
 
+enable_program cert-watch "${CERT_WATCH}"
+
 # Secrets are only needed by the scripts above; do not hand them to every
 # supervised process (they would be visible in /proc/*/environ).
 unset MYSQL_PASS MYSQL_ROOT_PASS CHAT_MYSQL_PASS FILES_MYSQL_PASS OFFICE_MYSQL_PASS ARCHIVE_MYSQL_PASS \
-      ADMIN_PASS CHAT_ADMIN_PASS FILES_ADMIN_PASS ARCHIVE_ADMIN_PASS ARCHIVE_AUDIT_PASS KEYCLOAK_CLIENT_SECRET SSL_PASS
+      ADMIN_PASS CHAT_ADMIN_PASS FILES_ADMIN_PASS ARCHIVE_ADMIN_PASS ARCHIVE_AUDIT_PASS KEYCLOAK_CLIENT_SECRET SSL_PASS OFFICE_JWT_SECRET
 
 exec /usr/local/bin/supervisord -n -c /etc/supervisord.conf

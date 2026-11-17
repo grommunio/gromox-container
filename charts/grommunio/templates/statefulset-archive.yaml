@@ -1,0 +1,81 @@
+{{- if .Values.features.archive.enabled }}
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $p := .Values.persistence.archive -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}-archive
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "archive") | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ $fullname }}-archive-hl
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      {{- include "grommunio.selectorLabels" (dict "root" . "component" "archive") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grommunio.selectorLabels" (dict "root" . "component" "archive") | nindent 8 }}
+        grommunio.io/relay-client: "true"
+        {{- with .Values.archive.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- include "grommunio.checksumAnnotations" . | nindent 8 }}
+        {{- with .Values.archive.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "grommunio.podCommon" (dict "root" . "component" "archive") | nindent 6 }}
+      {{- include "grommunio.hostAliases" . | nindent 6 }}
+      containers:
+        - name: archive
+          image: {{ include "grommunio.image" (dict "root" . "component" "archive") }}
+          imagePullPolicy: {{ .Values.image.archive.pullPolicy }}
+          securityContext:
+            {{- include "grommunio.appSecurityContext" . | nindent 12 }}
+          {{- include "grommunio.appEnv" (dict "root" . "component" "archive") | nindent 10 }}
+          ports:
+            - { name: https,        containerPort: 8443, protocol: TCP }
+            - { name: archive-smtp, containerPort: 2693, protocol: TCP }
+          {{- include "grommunio.probes" (dict "root" . "component" "archive") | nindent 10 }}
+          resources:
+            {{- toYaml .Values.archive.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "grommunio.commonVolumeMounts" . | nindent 12 }}
+            - name: data
+              mountPath: /var/lib/grommunio-archive
+            {{- if .Values.features.archive.encryptionKey.existingSecret }}
+            - name: archive-key
+              mountPath: /etc/grommunio-archive/provided
+              readOnly: true
+            {{- end }}
+            {{- with .Values.archive.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- include "grommunio.commonVolumes" . | nindent 8 }}
+        {{- include "grommunio.pvcVolume" (dict "name" "data" "spec" $p.data) | nindent 8 }}
+        {{- if .Values.features.archive.encryptionKey.existingSecret }}
+        - name: archive-key
+          secret:
+            secretName: {{ .Values.features.archive.encryptionKey.existingSecret }}
+            defaultMode: 0400
+        {{- end }}
+        {{- with .Values.archive.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- $t := include "grommunio.pvcTemplate" (dict "root" . "name" "data" "spec" $p.data) }}
+  {{- if ($t | trim) }}
+  volumeClaimTemplates:
+    {{- $t | nindent 4 }}
+  {{- end }}
+{{- end }}

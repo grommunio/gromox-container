@@ -8,7 +8,7 @@
 
 . /home/common/helpers
 
-log() { echo "$(date '+%Y-%m-%d %H:%M:%S') init: $*" | tee -a "${LOGFILE}"; }
+log() { logmsg "init: $*"; }
 
 mysql_archive() {
   MYSQL_PWD="${ARCHIVE_MYSQL_PASS}" mariadb -h"${ARCHIVE_MYSQL_HOST}" -u"${ARCHIVE_MYSQL_USER}" "$@"
@@ -38,6 +38,18 @@ EOF
 # Stored with the mail store on the archive_data volume (configure.sh links
 # /etc/grommunio-archive/grommunio-archive.key to it).
 KEY=/var/lib/grommunio-archive/grommunio-archive.key
+# ARCHIVE_KEY_FILE: key provided by the operator (Kubernetes secret mount, or a
+# restore). It seeds a missing key; a different existing key is never replaced.
+if [ -n "${ARCHIVE_KEY_FILE:-}" ] && [ -s "${ARCHIVE_KEY_FILE}" ]; then
+  if [ ! -s "${KEY}" ]; then
+    log "Installing the archive encryption key from ${ARCHIVE_KEY_FILE}"
+    cp -f "${ARCHIVE_KEY_FILE}" "${KEY}"
+  elif ! cmp -s "${ARCHIVE_KEY_FILE}" "${KEY}"; then
+    log "ERROR: ${ARCHIVE_KEY_FILE} differs from the key already in use at ${KEY}."
+    log "       Refusing to start: the archived mail is encrypted with the existing key. Remove the provided key or restore the matching data."
+    exit 1
+  fi
+fi
 if [ ! -s "${KEY}" ]; then
   HAS_MAIL=$(mysql_archive -N -s -e "SELECT COUNT(*) FROM \`${ARCHIVE_MYSQL_DB}\`.metadata;" 2>/dev/null || echo 0)
   if [ "${HAS_MAIL:-0}" != "0" ] && [ "${ARCHIVE_NEW_KEY:-false}" != "true" ]; then

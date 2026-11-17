@@ -1,0 +1,136 @@
+{{- if .Values.tests.enabled }}
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $internal := printf "%s-core-internal" $fullname -}}
+{{- $admin := printf "%s-core-admin" $fullname -}}
+{{- $hl := printf "%s-core-0.%s-core-hl" $fullname $fullname -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ $fullname }}-test
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "test") | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    # the pod stays after success so `helm test --logs` can show its output
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "grommunio.serviceAccountName" . }}
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  {{- with include "grommunio.imagePullSecrets" . }}{{ . | nindent 2 }}{{ end }}
+  containers:
+    - name: test
+      # the core image has curl, openssl, python3 and the mariadb client
+      image: {{ include "grommunio.image" (dict "root" . "component" "core") }}
+      imagePullPolicy: {{ .Values.image.core.pullPolicy }}
+      securityContext:
+        {{- include "grommunio.restrictedSecurityContext" (dict "uid" 65534 "readOnly" false) | nindent 8 }}
+      env:
+        - name: FQDN
+          value: {{ .Values.grommunio.fqdn | quote }}
+        - name: INTERNAL
+          value: {{ $internal | quote }}
+        - name: ADMIN
+          value: {{ $admin | quote }}
+        - name: CORE_POD
+          value: {{ $hl | quote }}
+        - name: DB_HOST
+          value: {{ include "grommunio.dbHost" . | quote }}
+        - name: DB_PORT
+          value: {{ include "grommunio.dbPort" . | quote }}
+        - name: MYSQL_USER
+          value: {{ .Values.externalDatabase.core.user | quote }}
+        - name: MYSQL_DB
+          value: {{ .Values.externalDatabase.core.database | quote }}
+        - name: ENABLE_ARCHIVE
+          value: {{ .Values.features.archive.enabled | quote }}
+        - name: ENABLE_FILES
+          value: {{ .Values.features.files.enabled | quote }}
+        - name: ENABLE_OFFICE
+          value: {{ .Values.features.office.enabled | quote }}
+        - name: ENABLE_CHAT
+          value: {{ .Values.features.chat.enabled | quote }}
+      envFrom:
+        - secretRef:
+            name: {{ include "grommunio.secretName" . }}
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -u
+          fail=0
+          check() { if [ "$2" = "0" ]; then echo "PASS  $1"; else echo "FAIL  $1 ${3:-}"; fail=1; fi; }
+          CA=/etc/grommunio-common/ssl/own/ca.crt
+          CURL="curl -s -m 30 --resolve ${FQDN}:443:$(getent ahostsv4 ${INTERNAL} | awk 'NR==1{print $1}')"
+          [ -s "$CA" ] && CURL="$CURL --cacert $CA" || CURL="$CURL -k"
+
+          code=$($CURL -o /dev/null -w '%{http_code}' "https://${FQDN}/web/")
+          check "webmail /web/ returns 200 via TLS with the deployment CA" "$([ "$code" = 200 ]; echo $?)" "got $code"
+          loc=$($CURL -o /dev/null -w '%{redirect_url}' "https://${FQDN}/")
+          check "/ redirects to /web/ without an internal port" "$(echo "$loc" | grep -qE '^https://[^/:]+/web/$'; echo $?)" "$loc"
+          code=$($CURL -o /dev/null -w '%{http_code}' "https://${FQDN}/Microsoft-Server-ActiveSync")
+          check "ActiveSync endpoint answers 401" "$([ "$code" = 401 ]; echo $?)" "got $code"
+          code=$($CURL -o /dev/null -w '%{http_code}' "https://${FQDN}/dav/")
+          check "DAV endpoint answers 401" "$([ "$code" = 401 ]; echo $?)" "got $code"
+          if [ "${ENABLE_CHAT}" = "true" ]; then
+            body=$($CURL "https://${FQDN}/chat/api/v4/system/ping")
+            check "chat API ping through core nginx" "$(echo "$body" | grep -q OK; echo $?)" "${body:0:80}"
+          fi
+          if [ "${ENABLE_FILES}" = "true" ]; then
+            body=$($CURL "https://${FQDN}/files/status.php")
+            check "Files status.php reports installed" "$(echo "$body" | grep -q '"installed":true'; echo $?)" "${body:0:80}"
+          fi
+          if [ "${ENABLE_OFFICE}" = "true" ]; then
+            body=$($CURL "https://${FQDN}/office/healthcheck")
+            check "Office document server healthcheck" "$([ "$body" = true ]; echo $?)" "${body:0:80}"
+          fi
+          if [ "${ENABLE_ARCHIVE}" = "true" ]; then
+            code=$($CURL -o /dev/null -w '%{http_code}' "https://${FQDN}/archive/index.php?route=login/login")
+            check "Archive login page through core nginx" "$([ "$code" = 200 ]; echo $?)" "got $code"
+          fi
+
+          code=$(curl -s -m 30 -k -o /dev/null -w '%{http_code}' "https://${ADMIN}:8443/api/v1/status")
+          check "admin API /api/v1/status" "$([ "$code" = 200 ]; echo $?)" "got $code"
+          code=$(curl -s -m 30 -k -o /dev/null -w '%{http_code}' -X POST --data-urlencode "user=admin" --data-urlencode "pass=${ADMIN_PASS}" "https://${ADMIN}:8443/api/v1/login")
+          check "admin API login with ADMIN_PASS" "$([ "$code" = 200 ]; echo $?)" "got $code"
+
+          banner=$(echo | timeout 20 openssl s_client -connect "${CORE_POD}:2993" 2>/dev/null | grep -m1 'OK')
+          check "IMAPS banner on 2993" "$(echo "$banner" | grep -q 'IMAP4rev1\|OK'; echo $?)" "$banner"
+
+          # the internal listener must not relay to foreign recipients
+          relay=$(python3 - <<'PY'
+          import os, smtplib
+          s = smtplib.SMTP(os.environ["INTERNAL"], 2525, timeout=30)
+          s.ehlo("helm-test." + os.environ["FQDN"])
+          s.mail("helm-test@" + os.environ["FQDN"])
+          code, msg = s.rcpt("nobody@relay-test.invalid")
+          print(code)
+          s.quit()
+          PY
+          )
+          check "internal relay rejects foreign recipients (got ${relay})" "$([ "$relay" = 554 ] || [ "$relay" = 454 ] || [ "$relay" = 550 ]; echo $?)"
+
+          dbs=$(mariadb -h "${DB_HOST}" -P "${DB_PORT}" -u "${MYSQL_USER}" -p"${MYSQL_PASS}" -N -s -e "SHOW DATABASES" 2>/dev/null | grep -v -E '^(information_schema|performance_schema)$' | paste -sd,)
+          check "core DB user sees only its own database" "$([ "$dbs" = "${MYSQL_DB}" ]; echo $?)" "$dbs"
+          exit $fail
+      resources:
+        requests: { cpu: 50m, memory: 128Mi }
+        limits:   { memory: 512Mi }
+      volumeMounts:
+        - name: tls
+          mountPath: /etc/grommunio-common/ssl/own
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: tls
+      secret:
+        secretName: {{ include "grommunio.tlsSecretName" . }}
+        optional: true
+    - name: tmp
+      emptyDir: {}
+{{- end }}

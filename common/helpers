@@ -1,0 +1,240 @@
+#!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2021 grommunio GmbH
+
+writelog(){
+
+  echo "$(date '+%Y-%m-%d %H:%M:%S :: ')" "$1" >> "${LOGFILE}"
+
+}
+
+# logmsg TEXT: timestamped line to the console and the setup log (once, when
+# the log is the console itself, i.e. LOG_TO_STDOUT / LOGFILE=/dev/stdout)
+logmsg(){
+  local line
+  line="$(date '+%Y-%m-%d %H:%M:%S') $*"
+  case "${LOGFILE:-}" in
+    ""|/dev/stdout|/dev/stderr|/dev/null) echo "${line}" ;;
+    *) echo "${line}" | tee -a "${LOGFILE}" ;;
+  esac
+}
+
+generate_g_cf_files(){
+  FILENAME=$1
+
+  declare -A INPUTS=(
+   [user]=$MYSQL_USER
+   [password]=$MYSQL_PASS
+   [dbname]=$MYSQL_DB
+   [hosts]=$MYSQL_HOST
+   [query]=$2
+  )
+
+  : > "${FILENAME}"
+
+  for elem in "${!INPUTS[@]}"
+  do
+   echo "${elem} = ${INPUTS[${elem}]}" >> "${FILENAME}"
+  done
+}
+
+generate_admin_db_conf(){
+  FILENAME=$1
+
+  declare -A INPUTS=(
+   [user]=$MYSQL_USER
+   [pass]=$MYSQL_PASS
+   [database]=$MYSQL_DB
+   [host]=$MYSQL_HOST
+  )
+
+  echo "DB:" > "${FILENAME}"
+
+  for elem in "${!INPUTS[@]}"
+  do
+   echo "  ${elem}: '${INPUTS[${elem}]//\'/\'\'}'" >> "${FILENAME}"
+  done
+}
+
+generate_admin_chat_conf(){
+  FILENAME=$1
+
+  cat > "${FILENAME}" <<EOF
+chat:
+  connection:
+    login_id: admin
+    password: '${CHAT_ADMIN_PASS//\'/\'\'}'
+    url: 'localhost'
+    basepath: /chat/api/v4
+    port: 8065
+    scheme: http
+    verify: False
+EOF
+}
+
+# setconf FILE PARAM VALUE [SPACING]
+# Set "PARAM=VALUE" (or "PARAM = VALUE" when SPACING is 0) in FILE, replacing an
+# existing assignment of exactly PARAM or appending it. VALUE may contain any
+# character; it is escaped for sed.
+setconf() {
+
+  local FILE="$1" PARAM="$2" VAL="$3" SPACING="${4:-1}" ESCVAL LINE
+  if [ -z "${FILE}" ] || [ -z "${PARAM}" ] || [ -z "${VAL}" ] ; then
+    return 1
+  fi
+  if [ "${SPACING}" = "1" ]; then
+    LINE="${PARAM}=${VAL}"
+  else
+    LINE="${PARAM} = ${VAL}"
+  fi
+  if [ -f "${FILE}" ] && grep -qE "^${PARAM}[[:space:]]*=" "${FILE}"; then
+    ESCVAL=$(printf '%s' "${LINE}" | sed -e 's/[\\&|]/\\&/g')
+    sed -i -E "s|^${PARAM}[[:space:]]*=.*|${ESCVAL}|" "${FILE}"
+  else
+    echo "${LINE}" >>"${FILE}"
+  fi
+  return 0
+
+}
+
+# Escape VALUE for use as a sed replacement (delimiter "#") / SQL string literal
+sed_esc() { printf '%s' "$1" | sed -e 's/[\\&#]/\\&/g'; }
+sql_esc() { local v="${1//\\/\\\\}"; printf '%s' "${v//\'/\'\'}"; }
+
+randpw(){
+
+  < /dev/urandom tr -dc A-Za-z0-9 | head -c"${1:-16}";echo;
+
+}
+
+# Container runtime helpers, shared by core, archive and office
+
+# seed_volume PATH
+# Kubernetes persistent volumes (and bind mounts) start out empty, unlike
+# Docker named volumes, which are populated from the image on first use.
+# The Dockerfiles snapshot the package-provided content of every persisted
+# path into ${SEED_DIR} (see seed-build.sh); this restores it into an empty
+# mount, including ownership and permissions. A non-empty directory is left
+# untouched (lost+found from a freshly formatted volume does not count).
+SEED_DIR="${SEED_DIR:-/usr/share/gromox-container/seed}"
+seed_volume() {
+  local path="$1" src="${SEED_DIR}$1" entries
+  [ -d "${src}" ] || return 0
+  mkdir -p "${path}"
+  entries=$(find "${path}" -mindepth 1 -maxdepth 1 ! -name 'lost+found' -print -quit 2>/dev/null)
+  if [ -n "${entries}" ]; then
+    return 0
+  fi
+  logmsg "Seeding empty volume ${path} from the image"
+  cp -a "${src}/." "${path}/"
+  chown --reference="${src}" "${path}" 2>/dev/null || true
+  chmod --reference="${src}" "${path}" 2>/dev/null || true
+}
+
+# wait_for_db HOST USER PASSWORD
+# Waits up to DB_WAIT_SECONDS (default 120) for a MariaDB login to succeed.
+# In Kubernetes the bundled database may still be initialising or upgrading
+# when the application pod starts, so the chart sets a longer budget.
+wait_for_db() {
+  local host="$1" user="$2" pass="$3" budget="${DB_WAIT_SECONDS:-120}" waited=0 attempt=0
+  echo "Waiting for database ${host} (up to ${budget}s)..."
+  while :; do
+    MYSQL_PWD="${pass}" mariadb -u "${user}" -h "${host}" -e "SELECT 1" >/dev/null 2>&1 && return 0
+    attempt=$((attempt+1)); waited=$((waited+2))
+    if [ "${waited}" -ge "${budget}" ]; then
+      echo "ERROR: database ${host} is not reachable after ${budget}s" >&2
+      return 1
+    fi
+    [ $((attempt % 15)) -eq 1 ] && echo "  still waiting for ${host} (${waited}s)..."
+    sleep 2
+  done
+}
+
+# setup_stdout_logging
+# LOG_TO_STDOUT=true: every supervised program logs to the container's
+# stdout/stderr (kubectl logs, docker logs) instead of files under /var/log.
+setup_stdout_logging() {
+  [ "${LOG_TO_STDOUT:-false}" = "true" ] || return 0
+  local f
+  for f in /etc/supervisor.d/*.conf; do
+    sed -i -E \
+      -e '/^(stdout|stderr)_logfile_maxbytes=/d' \
+      -e 's#^stdout_logfile=.*#stdout_logfile=/dev/fd/1\nstdout_logfile_maxbytes=0#' \
+      -e 's#^stderr_logfile=.*#stderr_logfile=/dev/fd/2\nstderr_logfile_maxbytes=0#' "$f"
+  done
+  # nginx and postfix write their own log files; point them at stdout as well
+  if [ -d /etc/nginx ]; then
+    install -d /var/log/nginx
+    ln -sfn /dev/stdout /var/log/nginx/access.log
+    ln -sfn /dev/stderr /var/log/nginx/error.log
+    for n in nginx-access nginx-files-access nginx-office-access nginx-archive-access nginx-admin-access; do
+      ln -sfn /dev/stdout "/var/log/nginx/${n}.log"
+    done
+    for n in nginx-error nginx-files-error nginx-office-error nginx-archive-error nginx-admin-error; do
+      ln -sfn /dev/stderr "/var/log/nginx/${n}.log"
+    done
+  fi
+}
+
+# add_hosts_alias NAME [NAME...]
+# FQDN_INTERNAL_TARGET: resolve the given service name and map the public
+# names onto it in /etc/hosts, so that in-cluster calls to https://FQDN/...
+# (Files -> DAV, document server -> Files) reach the core service directly
+# instead of relying on hairpin NAT through the external load balancer.
+add_hosts_alias() {
+  [ -n "${FQDN_INTERNAL_TARGET:-}" ] || return 0
+  local ip i tmp
+  # cluster DNS may still be starting (node reboot): retry for a while
+  for i in $(seq 1 60); do
+    ip=$(getent ahostsv4 "${FQDN_INTERNAL_TARGET}" 2>/dev/null | awk 'NR==1 {print $1}')
+    [ -n "${ip}" ] && break
+    [ $((i % 10)) -eq 1 ] && echo "Waiting for ${FQDN_INTERNAL_TARGET} to resolve (${i}/60)..."
+    sleep 2
+  done
+  if [ -z "${ip}" ]; then
+    echo "ERROR: FQDN_INTERNAL_TARGET=${FQDN_INTERNAL_TARGET} does not resolve; in-cluster calls to https://$1 would leave the cluster" >&2
+    return 1
+  fi
+  # /etc/hosts is a bind mount in Kubernetes: rewrite its content, not the inode
+  tmp=$(grep -v '# gromox-container FQDN_INTERNAL_TARGET$' /etc/hosts 2>/dev/null)
+  printf '%s\n%s %s # gromox-container FQDN_INTERNAL_TARGET\n' "${tmp}" "${ip}" "$*" > /etc/hosts
+  echo "Mapped $* to ${ip} (${FQDN_INTERNAL_TARGET}) in /etc/hosts"
+}
+
+# redirect_nginx_logs: with LOG_TO_STDOUT every log file the final nginx
+# configuration references becomes a link to the container's stdout/stderr.
+# Called at the end of configure.sh (the configuration is complete there).
+redirect_nginx_logs() {
+  [ "${LOG_TO_STDOUT:-false}" = "true" ] || return 0
+  local f
+  install -d /var/log/nginx
+  for f in $(nginx -T 2>/dev/null | grep -oE '/var/log/nginx/[A-Za-z0-9_.-]+' | sort -u); do
+    case "$f" in
+      *error*) ln -sfn /dev/stderr "$f" ;;
+      *)       ln -sfn /dev/stdout "$f" ;;
+    esac
+  done
+}
+
+# memory_total_mb: cgroup-aware total memory (container limit if set)
+memory_total_mb() {
+  local lim have
+  have=$(awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo)
+  lim=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null)
+  if [ -n "${lim}" ] && [ "${lim}" != "max" ] && [ "${lim}" -lt 9000000000000 ] 2>/dev/null; then
+    lim=$((lim/1024/1024))
+    [ "${lim}" -lt "${have}" ] && have="${lim}"
+  fi
+  echo "${have}"
+}
+
+# enable_program NAME true|false : flip autostart of a supervisor program
+enable_program() {
+  local f="/etc/supervisor.d/$1.conf"
+  [ -f "$f" ] || return 0
+  if [ "$2" = "true" ]; then
+    sed -i 's/^autostart=false/autostart=true/' "$f"
+  else
+    sed -i 's/^autostart=true/autostart=false/' "$f"
+  fi
+}

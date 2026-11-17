@@ -1,0 +1,16 @@
+# Supported edition: images built from the grommunio subscription repository.
+# The pull credentials (robot account) are provided by grommunio with the
+# subscription. Better than putting the password here:
+#   kubectl -n grommunio create secret docker-registry grommunio-registry \
+#     --docker-server=container.grommunio.com \
+#     --docker-username='robot$supported+<customer>' --docker-password='<secret>'
+# and global.imagePullSecrets: [grommunio-registry] instead of imageCredentials.
+grommunio:
+  fqdn: mail.example.com
+  domain: example.com
+
+global:
+  edition: supported
+  imageCredentials:
+    username: robot$supported+customer-1234
+    password: "change-me"

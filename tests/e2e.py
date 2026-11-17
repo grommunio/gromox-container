@@ -11,7 +11,15 @@ Environment (defaults in brackets):
   ADMIN_PASS              grommunio admin password        [admin]
   E2E_HOST                address of the docker host      [127.0.0.1]
   E2E_SMTP_PORT           host port published for SMTP    [25]
+  E2E_HTTP_PORT, E2E_HTTPS_PORT, E2E_ADMIN_PORT, E2E_IMAP_PORT, E2E_IMAPS_PORT,
+  E2E_SUBMISSION_PORT, E2E_SMTPS_PORT   other published ports [80 443 8443 143 993 587 465]
   E2E_USER_PASS, E2E_USER2_PASS  passwords of the test users alice@/bob@DOMAIN
+  E2E_EXEC_PREFIX         command prefix used instead of "docker exec", e.g.
+                          "kubectl exec -n grommunio" (Kubernetes)      [docker exec]
+  E2E_TARGET_<name>       maps a compose container name (gromox-core, gromox-archive,
+                          gromox-office, chat-db, archive-db; "-" written as "_") to the
+                          exec target, e.g. E2E_TARGET_gromox_core="grommunio-core-0 --"
+                          and E2E_TARGET_chat_db="grommunio-mariadb-0 --"
 
 Exit code 0 when all checks pass; prints PASS/FAIL per check.
 """
@@ -29,6 +37,20 @@ USER2 = f"bob@{DOMAIN}"
 USER2_PASS = os.environ.get("E2E_USER2_PASS", "B0bPass!!")
 CORE = "gromox-core"
 SMTP_PORT = int(os.environ.get("E2E_SMTP_PORT", "25"))
+HTTP_PORT = int(os.environ.get("E2E_HTTP_PORT", "80"))
+HTTPS_PORT = int(os.environ.get("E2E_HTTPS_PORT", "443"))
+ADMIN_PORT = int(os.environ.get("E2E_ADMIN_PORT", "8443"))
+IMAP_PORT = int(os.environ.get("E2E_IMAP_PORT", "143"))
+IMAPS_PORT = int(os.environ.get("E2E_IMAPS_PORT", "993"))
+SUBMISSION_PORT = int(os.environ.get("E2E_SUBMISSION_PORT", "587"))
+SMTPS_PORT = int(os.environ.get("E2E_SMTPS_PORT", "465"))
+EXEC_PREFIX = os.environ.get("E2E_EXEC_PREFIX", "docker exec").split()
+
+
+def exec_target(container):
+    """Exec command for a compose container name; E2E_TARGET_<name> overrides the target."""
+    mapped = os.environ.get("E2E_TARGET_" + container.replace("-", "_"))
+    return EXEC_PREFIX + (mapped.split() if mapped else [container])
 
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
@@ -81,23 +103,24 @@ def http_noredir(url):
 
 
 def dexec(container, *cmd):
-    return subprocess.run(["docker", "exec", container, *cmd], capture_output=True, text=True, timeout=180)
+    return subprocess.run([*exec_target(container), *cmd], capture_output=True, text=True, timeout=180)
 
 
 # ── 1. supervisord: everything RUNNING in all three containers ─────────
 for c in ("gromox-core", "gromox-archive", "gromox-office"):
     r = dexec(c, "supervisorctl", "status")
-    bad = [l for l in r.stdout.splitlines() if "RUNNING" not in l]
+    # programs disabled by configuration (autostart=false) show as "STOPPED   Not started"
+    bad = [l for l in r.stdout.splitlines() if "RUNNING" not in l and "Not started" not in l]
     check(f"supervisor all RUNNING in {c}", not bad and r.stdout.strip(), "; ".join(bad)[:300])
 
 # ── 2. HTTP surface via host ports ─────────────────────────────────────
-code, hdr = http_noredir(f"https://{HOST}:443/")
+code, hdr = http_noredir(f"https://{HOST}:{HTTPS_PORT}/")
 loc = hdr.get("Location", "")
 check("https:// root redirects to /web/ without internal port", code == 301 and loc.endswith("/web/") and ":8443" not in loc, f"{code} {loc}")
-code, hdr = http_noredir(f"http://{HOST}:80/web/")
+code, hdr = http_noredir(f"http://{HOST}:{HTTP_PORT}/web/")
 check("http:// redirects to https", code == 301 and hdr.get("Location", "").startswith("https://"), f"{code} {hdr.get('Location')}")
 for path, want in (("/web/", 200), ("/dav/", 401), ("/Microsoft-Server-ActiveSync", 401), ("/chat/", 200), ("/files/", 200), ("/archive/", 200), ("/office/healthcheck", 200)):
-    code, hdr, body = http(f"https://{HOST}:443{path}")
+    code, hdr, body = http(f"https://{HOST}:{HTTPS_PORT}{path}")
     extra = ""
     if path == "/office/healthcheck":
         extra = body.decode(errors="replace")[:20]
@@ -108,20 +131,20 @@ for path, want in (("/web/", 200), ("/dav/", 401), ("/Microsoft-Server-ActiveSyn
         want_ok = code == want
     check(f"GET {path} -> {want}", want_ok, f"got {code} {extra}")
 for path in ("/files", "/archive", "/office", "/web"):
-    code, hdr = http_noredir(f"https://{HOST}:443{path}")
+    code, hdr = http_noredir(f"https://{HOST}:{HTTPS_PORT}{path}")
     loc = hdr.get("Location", "")
     check(f"redirect of {path} carries no internal port", ":8443" not in loc and ":9443" not in loc, f"{code} {loc}")
 
 # admin UI on host 8443 -> container 9443
-code, hdr, body = http(f"https://{HOST}:8443/")
+code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/")
 check("admin UI reachable on :8443", code == 200 and b"<html" in body.lower(), f"{code}")
-code, hdr = http_noredir(f"https://{HOST}:8443/antispam")
+code, hdr = http_noredir(f"https://{HOST}:{ADMIN_PORT}/antispam")
 check("admin /antispam redirect carries no :9443", ":9443" not in hdr.get("Location", ""), hdr.get("Location", ""))
-code, hdr, body = http(f"https://{HOST}:8443/api/v1/status")
+code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/status")
 check("admin API /api/v1/status", code == 200, f"{code} {body[:80]!r}")
 
 # ── 3. admin API login + provisioning ──────────────────────────────────
-code, hdr, body = http(f"https://{HOST}:8443/api/v1/login", "POST",
+code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/login", "POST",
                        data=f"user=admin&pass={urllib.parse.quote(ADMIN_PASS)}".encode(),
                        headers={"Content-Type": "application/x-www-form-urlencoded"})
 token = None
@@ -134,10 +157,10 @@ except Exception:
 check("admin API login", code == 200 and token, f"{code} {body[:120]!r}")
 
 if token:
-    code, hdr, body = http(f"https://{HOST}:8443/api/v1/domains", token=token)
+    code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/domains", token=token)
     doms = json.loads(body).get("data", []) if code == 200 else []
     if not any(d.get("domainname") == DOMAIN for d in doms):
-        code, hdr, body = http(f"https://{HOST}:8443/api/v1/system/domains", "POST", token=token,
+        code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/system/domains", "POST", token=token,
                                data=json.dumps({"domainname": DOMAIN, "maxUser": 100, "chat": True}).encode(),
                                headers={"Content-Type": "application/json"})
         check("create domain via admin API", code in (200, 201), f"{code} {body[:200]!r}")
@@ -145,43 +168,43 @@ if token:
         if did is None:
             r = dexec(CORE, "grommunio-admin", "domain", "create", "-u", "100", DOMAIN)
             print("   CLI fallback:", (r.stdout + r.stderr).strip()[:200])
-            code, hdr, body = http(f"https://{HOST}:8443/api/v1/domains", token=token)
+            code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/domains", token=token)
             doms = json.loads(body).get("data", []) if code == 200 else []
             did = next((d["ID"] for d in doms if d["domainname"] == DOMAIN), None)
     else:
         did = next(d["ID"] for d in doms if d["domainname"] == DOMAIN)
         check("domain exists", True, f"ID {did}")
     if did:
-        code, hdr, body = http(f"https://{HOST}:8443/api/v1/domains/{did}/users?limit=100", token=token)
+        code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/domains/{did}/users?limit=100", token=token)
         users = json.loads(body).get("data", []) if code == 200 else []
         # chat must be enabled on the domain before users can get chat accounts
-        code, hdr, body = http(f"https://{HOST}:8443/api/v1/system/domains/{did}", "PATCH", token=token,
+        code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/system/domains/{did}", "PATCH", token=token,
                                data=json.dumps({"chat": True}).encode(), headers={"Content-Type": "application/json"})
         check("enable chat for the domain via admin API (chat.yaml connection)", code == 200 and json.loads(body).get("chat") is True, f"{code} {body[:120]!r}")
         for uname, upass, dname in ((USER, USER_PASS, "Alice Test"), (USER2, USER2_PASS, "Bob Test")):
           if not any(u.get("username") == uname for u in users):
             payload = {"username": uname, "password": upass, "status": 0, "pop3_imap": True, "smtp": True,
                        "changePassword": True, "properties": {"displayname": dname, "storagequotalimit": 1024000}}
-            code, hdr, body = http(f"https://{HOST}:8443/api/v1/domains/{did}/users", "POST", token=token,
+            code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/domains/{did}/users", "POST", token=token,
                                    data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
             check(f"create user {uname} via admin API", code in (200, 201), f"{code} {body[:200]!r}")
             if code not in (200, 201):
                 r = dexec(CORE, "grommunio-admin", "user", "create", "--password", upass, uname)
                 print("   CLI fallback:", (r.stdout + r.stderr).strip()[:200])
         # re-read and make sure both users may use IMAP/SMTP (idempotent on re-runs)
-        code, hdr, body = http(f"https://{HOST}:8443/api/v1/domains/{did}/users?limit=100", token=token)
+        code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/domains/{did}/users?limit=100", token=token)
         users = json.loads(body).get("data", []) if code == 200 else []
         for uname in (USER, USER2):
             uid = next((u["ID"] for u in users if u["username"] == uname), None)
             if uid is None:
                 check(f"user {uname} exists", False)
                 continue
-            code, hdr, body = http(f"https://{HOST}:8443/api/v1/domains/{did}/users/{uid}", "PATCH", token=token,
+            code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/domains/{did}/users/{uid}", "PATCH", token=token,
                                    data=json.dumps({"pop3_imap": True, "smtp": True}).encode(),
                                    headers={"Content-Type": "application/json"})
             check(f"user {uname} has IMAP/SMTP privileges", code == 200, f"{code} {body[:100]!r}")
     # dashboard services endpoint (issue 24 regression)
-    code, hdr, body = http(f"https://{HOST}:8443/api/v1/system/dashboard/services", token=token)
+    code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/system/dashboard/services", token=token)
     check("admin API dashboard/services", code == 200, f"{code} {body[:120]!r}")
     # passwd endpoint used by the webmail plugin (PR 41): reachable on 9080 inside the container
     r = dexec(CORE, "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "-X", "PUT", "http://[::1]:8080/api/v1/passwd")
@@ -189,14 +212,14 @@ if token:
     r = dexec(CORE, "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:8080/statusmonitor")
     check("admin-api statusmonitor vhost localhost:8080", r.stdout.strip() in ("200", "403"), r.stdout.strip())
     # chat integration: admin-api talks to chat via chat.yaml (localhost:8065)
-    code, hdr, body = http(f"https://{HOST}:8443/api/v1/domains/{did}/users?limit=100", token=token)
+    code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/domains/{did}/users?limit=100", token=token)
     users = json.loads(body).get("data", []) if code == 200 else []
     uid = next((u["ID"] for u in users if u["username"] == USER), None)
     if uid:
-        code, hdr, body = http(f"https://{HOST}:8443/api/v1/domains/{did}/users/{uid}", "PATCH", token=token,
+        code, hdr, body = http(f"https://{HOST}:{ADMIN_PORT}/api/v1/domains/{did}/users/{uid}", "PATCH", token=token,
                                data=json.dumps({"chat": True}).encode(), headers={"Content-Type": "application/json"})
         ok = code == 200 and json.loads(body).get("chat") is True
-        r = subprocess.run(["docker", "exec", "chat-db", "mariadb", "-ugrochat", "-p" + os.environ.get("CHAT_MYSQL_PASS", "grommunio"), "grochat", "-N", "-s", "-e",
+        r = subprocess.run([*exec_target("chat-db"), "mariadb", "-u" + os.environ.get("CHAT_MYSQL_USER", "grochat"), "-p" + os.environ.get("CHAT_MYSQL_PASS", "grommunio"), os.environ.get("CHAT_MYSQL_DB", "grochat"), "-N", "-s", "-e",
                             f"SELECT COUNT(*) FROM Users WHERE Email='{USER}'"], capture_output=True, text=True)
         check("admin-api creates the chat account for the user (chat.yaml connection works)", ok and r.stdout.strip() == "1", f"{code} {body[:100]!r} rows={r.stdout.strip()}")
 
@@ -217,11 +240,11 @@ def imap_login(port, starttls):
         print("   imap error:", e)
         return None
 
-m = imap_login(993, False)
+m = imap_login(IMAPS_PORT, False)
 check("IMAPS login (993)", m is not None)
 if m:
     m.logout()
-m = imap_login(143, True)
+m = imap_login(IMAP_PORT, True)
 check("IMAP STARTTLS login (143)", m is not None)
 if m:
     m.logout()
@@ -252,7 +275,7 @@ def send(port, wrapper):
         return None
 
 subjects = []
-for port, wrapper in ((587, False), (465, True)):
+for port, wrapper in ((SUBMISSION_PORT, False), (SMTPS_PORT, True)):
     subj = send(port, wrapper)
     check(f"SMTP submission with auth on {port}", subj is not None)
     if subj:
@@ -285,7 +308,7 @@ check("postfix: submission ports relay only for authenticated users", r.stdout.c
 # ── 6. delivery: mails arrive in INBOX via IMAP ───────────────────────
 found = set()
 for _ in range(30):
-    m = imap_login(993, False)
+    m = imap_login(IMAPS_PORT, False)
     if m:
         typ, data = m.search(None, "ALL")
         for num in (data[0].split() if data and data[0] else []):
@@ -299,7 +322,7 @@ for _ in range(30):
         break
     time.sleep(3)
 check("all test mails delivered to INBOX", len(found) == len(subjects) and subjects, f"{len(found)}/{len(subjects)}")
-m = imap_login(993, False)
+m = imap_login(IMAPS_PORT, False)
 leak = None
 if m:
     typ, data = m.search(None, "ALL")
@@ -311,7 +334,7 @@ if m:
     m.logout()
 check("delivered mails carry no X-Envelope-To header (Bcc not disclosed)", leak is None, (leak or "")[:120].replace("\n", " "))
 try:
-    mb = imaplib.IMAP4_SSL(HOST, 993, ssl_context=ctx, timeout=30); mb.login(USER2, USER2_PASS); mb.select("INBOX")
+    mb = imaplib.IMAP4_SSL(HOST, IMAPS_PORT, ssl_context=ctx, timeout=30); mb.login(USER2, USER2_PASS); mb.select("INBOX")
     typ, data = mb.search(None, "ALL"); n = len(data[0].split()) if data and data[0] else 0
     leak2 = None
     for num in (data[0].split() if data and data[0] else []):
@@ -327,7 +350,7 @@ except Exception as e:
 # ── 7. archive received BCC copies ────────────────────────────────────
 def archived(subjs):
     q = "SELECT COUNT(*) FROM metadata WHERE " + " OR ".join(f"subject LIKE '%{x}%'" for x in subjs)
-    r = subprocess.run(["docker", "exec", "archive-db", "mariadb", "-ugroarchive", "-p" + os.environ.get("ARCHIVE_MYSQL_PASS", "grommunio"), "groarchive", "-N", "-s", "-e", q],
+    r = subprocess.run([*exec_target("archive-db"), "mariadb", "-u" + os.environ.get("ARCHIVE_MYSQL_USER", "groarchive"), "-p" + os.environ.get("ARCHIVE_MYSQL_PASS", "grommunio"), os.environ.get("ARCHIVE_MYSQL_DB", "groarchive"), "-N", "-s", "-e", q],
                        capture_output=True, text=True)
     try:
         return int(r.stdout.strip() or 0)
@@ -345,10 +368,10 @@ check("archive stored the BCC copies of this run's mails", subjects and cnt == l
 # ── 8. Files: login with grommunio credentials through the proxy ──────
 import base64
 auth = base64.b64encode(f"{USER}:{USER_PASS}".encode()).decode()
-code, hdr, body = http(f"https://{HOST}:443/files/remote.php/dav/files/" + urllib.parse.quote(USER) + "/", "PROPFIND",
+code, hdr, body = http(f"https://{HOST}:{HTTPS_PORT}/files/remote.php/dav/files/" + urllib.parse.quote(USER) + "/", "PROPFIND",
                        headers={"Authorization": f"Basic {auth}", "Depth": "0"})
 check("Files WebDAV auth with grommunio user (external user backend)", code == 207, f"{code} {body[:150]!r}")
-code, hdr, body = http(f"https://{HOST}:443/files/status.php")
+code, hdr, body = http(f"https://{HOST}:{HTTPS_PORT}/files/status.php")
 try:
     st = json.loads(body)
 except Exception:
@@ -356,34 +379,34 @@ except Exception:
 check("Files status.php installed", code == 200 and st.get("installed") is True, f"{code} {body[:120]!r}")
 # > 1 MiB upload through the core proxy (issue 35)
 blob = b"x" * (3 * 1024 * 1024)
-code, hdr, body = http(f"https://{HOST}:443/files/remote.php/dav/files/" + urllib.parse.quote(USER) + "/e2e-3mb.bin", "PUT",
+code, hdr, body = http(f"https://{HOST}:{HTTPS_PORT}/files/remote.php/dav/files/" + urllib.parse.quote(USER) + "/e2e-3mb.bin", "PUT",
                        data=blob, headers={"Authorization": f"Basic {auth}", "Content-Type": "application/octet-stream"})
 check("Files 3 MiB upload through proxy (no 413)", code in (201, 204), f"{code}")
 
 # ── 9. Archive web UI login page / search through proxy ───────────────
-code, hdr, body = http(f"https://{HOST}:443/archive/index.php?route=login/login")
+code, hdr, body = http(f"https://{HOST}:{HTTPS_PORT}/archive/index.php?route=login/login")
 check("archive login page renders (php extensions)", code == 200 and b"password" in body.lower(), f"{code} {body[:100]!r}")
 import re as _re
 assets = _re.findall(rb'(?:href|src)="(/archive/[^"]+\.(?:css|js))', body)
 if assets:
-    code, hdr, body2 = http(f"https://{HOST}:443" + assets[0].decode())
+    code, hdr, body2 = http(f"https://{HOST}:{HTTPS_PORT}" + assets[0].decode())
     check("archive static asset served through proxy", code == 200 and len(body2) > 100, f"{code} {assets[0].decode()}")
 else:
     check("archive static asset served through proxy", False, "no asset link found in login page")
-r = subprocess.run(["docker", "exec", "archive-db", "mariadb", "-ugroarchive", "-p" + os.environ.get("ARCHIVE_MYSQL_PASS", "grommunio"), "groarchive", "-N", "-s", "-e",
+r = subprocess.run([*exec_target("archive-db"), "mariadb", "-u" + os.environ.get("ARCHIVE_MYSQL_USER", "groarchive"), "-p" + os.environ.get("ARCHIVE_MYSQL_PASS", "grommunio"), os.environ.get("ARCHIVE_MYSQL_DB", "groarchive"), "-N", "-s", "-e",
                     f"SELECT COUNT(*) FROM rcpt r JOIN metadata m ON m.id=r.id WHERE m.subject LIKE 'e2e %' AND r.`to` = '{USER2}'"], capture_output=True, text=True)
 check("archive copy keeps the Bcc recipient (X-Envelope-To)", (r.stdout.strip() or "0") != "0", f"bcc rcpt rows: {r.stdout.strip()}")
 
 # ── 10. Office document server via proxy ──────────────────────────────
-code, hdr, body = http(f"https://{HOST}:443/office/web-apps/apps/api/documents/api.js")
+code, hdr, body = http(f"https://{HOST}:{HTTPS_PORT}/office/web-apps/apps/api/documents/api.js")
 check("office api.js served through proxy", code == 200 and b"DocsAPI" in body, f"{code}")
-r = subprocess.run(["docker", "exec", "gromox-office", "bash", "-c", "cd /usr/share/grommunio-files && sudo -u grofiles ./occ -n onlyoffice:documentserver --check 2>&1"], capture_output=True, text=True)
+r = subprocess.run([*exec_target("gromox-office"), "bash", "-c", "cd /usr/share/grommunio-files && sudo -u grofiles ./occ -n onlyoffice:documentserver --check 2>&1"], capture_output=True, text=True)
 check("Files <-> document server connection check (JWT, internal URL)", "successfully" in r.stdout.lower() or "ok" in r.stdout.lower(), r.stdout.strip()[-120:])
 r = dexec("gromox-office", "bash", "-c", "grep -c '\"enable\": {' /etc/grommunio-office/default.json; jq -r .services.CoAuthoring.token.enable.browser /etc/grommunio-office/default.json")
 check("document server JWT enabled", r.stdout.strip().endswith("true"), r.stdout.strip().replace("\n", " "))
 
 # ── 11. Chat API via proxy ────────────────────────────────────────────
-code, hdr, body = http(f"https://{HOST}:443/chat/api/v4/system/ping")
+code, hdr, body = http(f"https://{HOST}:{HTTPS_PORT}/chat/api/v4/system/ping")
 check("chat API ping through proxy", code == 200 and b"OK" in body, f"{code} {body[:80]!r}")
 
 # ── 12. gromox-index ran and created an index for the user ────────────
@@ -393,7 +416,11 @@ check("search indexes are readable by grommunio-web (group groweb)", r3.stdout.s
 r2 = dexec(CORE, "bash", "-c", "ss -tlnp | grep -E ':24 ' ; postconf -h mynetworks")
 check("delivery-queue bound to loopback only and gateways excluded from mynetworks",
       "127.0.0.1]:24" in r2.stdout or "127.0.0.1:24" in r2.stdout, r2.stdout.strip().replace("\n", " | ")[:200])
-check("postfix mynetworks excludes the docker gateways", "!" in r2.stdout and "172.28.0.0/24" in r2.stdout, r2.stdout.strip().split("|")[-1][:120])
+mn2 = r2.stdout.strip().splitlines()[-1].strip() if r2.stdout.strip() else ""
+if EXEC_PREFIX[0] == "docker":
+    check("postfix mynetworks excludes the docker gateways", "!" in mn2 and "172.28.0.0/24" in mn2, mn2[:120])
+else:
+    check("postfix mynetworks is loopback only (Kubernetes: never trust the pod network)", mn2.split() == ["127.0.0.0/8", "[::1]/128"], mn2[:120])
 check("grommunio-index runs as groindex:groweb", r.returncode == 0, (r.stdout + r.stderr)[:200].replace("\n", " "))
 
 failed = [n for n, ok, _ in results if not ok]

@@ -5,3 +5,4 @@ variables_data
 backup
 var.local.env
 *.md
+charts/

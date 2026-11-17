@@ -8,7 +8,7 @@
 
 . /home/common/helpers
 
-log() { echo "$(date '+%Y-%m-%d %H:%M:%S') init: $*" | tee -a "${LOGFILE}"; }
+log() { logmsg "init: $*"; }
 occ() { ( cd /usr/share/grommunio-files && sudo -u grofiles ./occ -n "$@" ); }
 
 # ── grommunio Files ───────────────────────────────────────────────

@@ -1,0 +1,26 @@
+# External MariaDB (managed service, MariaDB Operator, Galera, ...).
+# The chart creates the five databases and users with the admin credentials
+# (externalDatabase.manage=true); set manage=false to pre-create them
+# yourself with the passwords of the chart Secret.
+grommunio:
+  fqdn: mail.example.com
+  domain: example.com
+
+mariadb:
+  enabled: false
+
+externalDatabase:
+  host: mariadb.database.svc.cluster.local
+  port: 3306
+  manage: true
+  adminUser: root
+  adminSecret: mariadb-root          # Secret with key MYSQL_ROOT_PASS
+  core:    { database: grommunio,  user: grommunio }
+  chat:    { database: grochat,    user: grochat }
+  files:   { database: grofiles,   user: grofiles }
+  office:  { database: groffice,   user: groffice }
+  archive: { database: groarchive, user: groarchive }
+
+# Bring your own passwords (recommended with GitOps; see README "Secrets")
+secrets:
+  existingSecret: grommunio-secrets

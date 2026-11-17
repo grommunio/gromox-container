@@ -1,0 +1,30 @@
+{{- if eq .Values.tls.mode "certManager" }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "grommunio.fullname" . }}-tls
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "grommunio.tlsSecretName" . }}
+  commonName: {{ .Values.grommunio.fqdn }}
+  dnsNames:
+    {{- range include "grommunio.dnsNames" . | fromJsonArray }}
+    - {{ . }}
+    {{- end }}
+  duration: {{ .Values.tls.certManager.duration }}
+  renewBefore: {{ .Values.tls.certManager.renewBefore }}
+  privateKey:
+    rotationPolicy: Always
+    algorithm: RSA
+    size: 3072
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+  issuerRef:
+    name: {{ .Values.tls.certManager.issuerRef.name }}
+    kind: {{ .Values.tls.certManager.issuerRef.kind }}
+    group: {{ .Values.tls.certManager.issuerRef.group }}
+{{- end }}

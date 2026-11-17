@@ -1,0 +1,82 @@
+{{- if include "grommunio.officePodEnabled" . }}
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $p := .Values.persistence.office -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}-office
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "office") | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ $fullname }}-office-hl
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      {{- include "grommunio.selectorLabels" (dict "root" . "component" "office") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grommunio.selectorLabels" (dict "root" . "component" "office") | nindent 8 }}
+        grommunio.io/relay-client: "true"
+        {{- with .Values.office.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- include "grommunio.checksumAnnotations" . | nindent 8 }}
+        {{- with .Values.office.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "grommunio.podCommon" (dict "root" . "component" "office") | nindent 6 }}
+      {{- include "grommunio.hostAliases" . | nindent 6 }}
+      containers:
+        - name: office
+          image: {{ include "grommunio.image" (dict "root" . "component" "office") }}
+          imagePullPolicy: {{ .Values.image.office.pullPolicy }}
+          securityContext:
+            {{- include "grommunio.appSecurityContext" . | nindent 12 }}
+          {{- include "grommunio.appEnv" (dict "root" . "component" "office") | nindent 10 }}
+          ports:
+            - { name: https, containerPort: 8443, protocol: TCP }
+          {{- include "grommunio.probes" (dict "root" . "component" "office") | nindent 10 }}
+          resources:
+            {{- toYaml .Values.office.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "grommunio.commonVolumeMounts" . | nindent 12 }}
+            - name: files
+              mountPath: /var/lib/grommunio-files
+            - name: office-cache
+              mountPath: /var/lib/grommunio-office
+            - name: rabbitmq
+              mountPath: /var/lib/rabbitmq
+            - name: redis
+              mountPath: /var/lib/redis
+            {{- with .Values.office.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- include "grommunio.commonVolumes" . | nindent 8 }}
+        {{- include "grommunio.pvcVolume" (dict "name" "files" "spec" $p.files) | nindent 8 }}
+        - name: office-cache
+          emptyDir:
+            sizeLimit: {{ $p.cacheSizeLimit }}
+        - name: rabbitmq
+          emptyDir: {}
+        - name: redis
+          emptyDir: {}
+        {{- with .Values.office.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- $t := include "grommunio.pvcTemplate" (dict "root" . "name" "files" "spec" $p.files) }}
+  {{- if ($t | trim) }}
+  volumeClaimTemplates:
+    {{- $t | nindent 4 }}
+  {{- end }}
+{{- end }}

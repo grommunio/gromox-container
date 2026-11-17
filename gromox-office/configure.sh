@@ -7,7 +7,7 @@
 . /home/common/helpers
 . /home/common/ssl_setup
 
-log() { echo "$(date '+%Y-%m-%d %H:%M:%S') configure: $*" | tee -a "${LOGFILE}"; }
+log() { logmsg "configure: $*"; }
 occ() { ( cd /usr/share/grommunio-files && sudo -u grofiles ./occ -n -q "$@" ) >>"${LOGFILE}" 2>&1; }
 
 trust_shared_cert
@@ -116,6 +116,8 @@ if [ "${ENABLE_OFFICE}" = "true" ]; then
 else
   sed -i 's/^autostart=true/autostart=false/' /etc/supervisor.d/ds-docservice.conf /etc/supervisor.d/ds-converter.conf /etc/supervisor.d/rabbitmq.conf
 fi
+
+redirect_nginx_logs
 
 if ! nginx -t >/dev/null 2>&1; then
   log "WARNING: nginx configuration test failed:"

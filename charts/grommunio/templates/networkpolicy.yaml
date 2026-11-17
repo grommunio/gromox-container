@@ -1,0 +1,216 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $np := .Values.networkPolicy -}}
+{{- $coreSel := include "grommunio.selectorLabels" (dict "root" . "component" "core") -}}
+{{- $archiveSel := include "grommunio.selectorLabels" (dict "root" . "component" "archive") -}}
+{{- $officeSel := include "grommunio.selectorLabels" (dict "root" . "component" "office") -}}
+{{- $publicPorts := list 2525 2465 2587 2143 2993 2110 2995 -}}
+{{- if not .Values.ingress.enabled }}{{ $publicPorts = concat $publicPorts (list 8081 8443) }}{{ end -}}
+{{- if .Values.service.core.ports.admin.enabled }}{{ $publicPorts = append $publicPorts 9443 }}{{ end -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-core
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "core") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $coreSel | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if $np.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    # public mail/web ports
+    - from:
+        {{- range $np.core.allowedSourceRanges }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        {{- range $publicPorts }}
+        - { protocol: TCP, port: {{ . }} }
+        {{- end }}
+    {{- if .Values.ingress.enabled }}
+    # HTTPS backends for the ingress controller
+    - from:
+        - namespaceSelector:
+            {{- toYaml $np.ingressController.namespaceSelector | nindent 12 }}
+          {{- with $np.ingressController.podSelector }}
+          podSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      ports:
+        - { protocol: TCP, port: 8443 }
+        {{- if .Values.ingress.admin.enabled }}
+        - { protocol: TCP, port: 9443 }
+        {{- end }}
+    {{- end }}
+    # admin UI/rspamd UI: by default only from this namespace (and whatever
+    # service.admin / ingress.admin expose); networkPolicy.admin.from adds peers,
+    # networkPolicy.admin.allowAll opens the port to any source.
+    - {{- if not $np.admin.allowAll }}
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+        {{- with $np.admin.from }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      ports:
+        - { protocol: TCP, port: 9443 }
+    # internal relay + hairpin HTTPS from archive/office
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              grommunio.io/relay-client: "true"
+      ports:
+        - { protocol: TCP, port: {{ .Values.network.internalRelay.port }} }
+        - { protocol: TCP, port: 8443 }
+        - { protocol: TCP, port: 8081 }
+    # helm test pod
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "grommunio.selectorLabels" (dict "root" . "component" "test") | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: 8443 }
+        - { protocol: TCP, port: 9443 }
+        - { protocol: TCP, port: 2993 }
+        - { protocol: TCP, port: {{ .Values.network.internalRelay.port }} }
+  {{- if $np.egress.enabled }}
+  egress:
+    {{- include "grommunio.egressRules" . | nindent 4 }}
+    # outbound mail, LDAP/Keycloak, package metadata, Let's Encrypt OCSP
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - ipBlock:
+            cidr: ::/0
+      ports:
+        - { protocol: TCP, port: 25 }
+        - { protocol: TCP, port: 465 }
+        - { protocol: TCP, port: 587 }
+        - { protocol: TCP, port: 80 }
+        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 389 }
+        - { protocol: TCP, port: 636 }
+  {{- end }}
+{{- if .Values.features.archive.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-archive
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "archive") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $archiveSel | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if $np.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $coreSel | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: 8443 }
+        - { protocol: TCP, port: 2693 }
+  {{- if $np.egress.enabled }}
+  egress:
+    {{- include "grommunio.egressRules" . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if include "grommunio.officePodEnabled" . }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-office
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "office") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $officeSel | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if $np.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $coreSel | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: 8443 }
+  {{- if $np.egress.enabled }}
+  egress:
+    {{- include "grommunio.egressRules" . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if .Values.mariadb.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-mariadb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "grommunio.selectorLabels" (dict "root" . "component" "mariadb") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "grommunio.name" . }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - { protocol: TCP, port: 3306 }
+{{- end }}
+{{- end }}
+
+{{- define "grommunio.egressRules" -}}
+# DNS
+- to:
+    - namespaceSelector: {}
+  ports:
+    - { protocol: UDP, port: 53 }
+    - { protocol: TCP, port: 53 }
+# everything inside the release (database, core <-> archive/office)
+- to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: {{ include "grommunio.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+{{- if not .Values.mariadb.enabled }}
+- to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+  ports:
+    - { protocol: TCP, port: {{ .Values.externalDatabase.port }} }
+{{- end }}
+{{- range .Values.networkPolicy.egress.extraCIDRs }}
+- to:
+    - ipBlock:
+        cidr: {{ . }}
+{{- end }}
+{{- end -}}

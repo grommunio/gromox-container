@@ -1,0 +1,501 @@
+# Default values for the grommunio chart.
+#
+# The chart deploys the three gromox-container images (core, archive, office)
+# as single-replica StatefulSets plus, by default, one bundled MariaDB holding
+# the five grommunio databases. Everything that is configured through var.env
+# in docker-compose is configured through these values.
+#
+# Minimal production values:
+#   grommunio.fqdn, grommunio.domain, a TLS mode, storage sizes/classes and
+#   either a LoadBalancer or externalIPs for the public mail/web Service.
+
+global:
+  # Cluster DNS domain (used to build fully qualified Service names; nginx
+  # inside the core container resolves them without a search list).
+  clusterDomain: cluster.local
+  # Default StorageClass for every PersistentVolumeClaim (""= cluster default).
+  storageClass: ""
+  # Registry for all images. container.grommunio.com hosts two projects:
+  #   community/  public, no credentials (images built from the community packages)
+  #   supported/  subscription customers only (images built from the supported
+  #               packages); needs pull credentials, see imageCredentials
+  # Point this at your own mirror for air-gapped clusters ("registry.example.com:5000").
+  imageRegistry: container.grommunio.com
+  # community | supported: selects <imageRegistry>/<edition>/gromox-* for the
+  # core, archive and office images (image.<c>.repository "" = default path).
+  edition: community
+  # Pull credentials for imageRegistry (supported edition). With username set
+  # the chart creates a kubernetes.io/dockerconfigjson Secret
+  # "<release>-registry" and uses it in every pod. Alternatively create the
+  # Secret yourself (kubectl create secret docker-registry ...) and list it in
+  # imagePullSecrets.
+  imageCredentials:
+    username: ""          # robot account, e.g. robot$supported+customer-1234
+    password: ""
+    email: ""
+  imagePullSecrets: []
+  #  - name: regcred
+
+image:
+  # tag "" means .Chart.AppVersion. Use digest to pin ("sha256:...").
+  # registry "" means global.imageRegistry. Every image also carries a
+  # build tag "<appVersion>-<YYYYMMDDhhmm>".
+  core:
+    registry: ""
+    repository: ""   # "" = <global.edition>/gromox-core
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  archive:
+    registry: ""
+    repository: ""   # "" = <global.edition>/gromox-archive
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  office:
+    registry: ""
+    repository: ""   # "" = <global.edition>/gromox-office
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  mariadb:
+    registry: ""
+    # Mirrored daily from docker.io/library/mariadb (public, no credentials)
+    repository: community/mariadb
+    tag: "11.8"
+    digest: ""
+    pullPolicy: IfNotPresent
+
+grommunio:
+  # Public host name of the server (webmail, EAS, IMAP, SMTP, certificate CN). REQUIRED.
+  fqdn: ""
+  # Primary mail domain (autodiscover.<domain> is added to the certificate). REQUIRED.
+  domain: ""
+  timezone: Europe/Vienna
+  # Outbound SMTP relay ("[host]:port"), empty = direct delivery.
+  relayhost: ""
+  # Cron schedule of the webmail full-text indexer; "" disables it.
+  indexSchedule: "*/15 * * * *"
+  # X.500 organisation id. Empty = generated on first start and persisted in the config volume.
+  x500: ""
+  # Additional environment for all three application containers.
+  extraEnv: []
+  #  - name: FOO
+  #    value: bar
+  extraEnvFrom: []
+  #  - secretRef:
+  #      name: my-extra-env
+
+# ENABLE_* of var.env
+features:
+  chat:
+    enabled: true
+  files:
+    enabled: true
+  office:
+    enabled: true
+  archive:
+    enabled: true
+    # Retention of newly archived mail in days (7 years).
+    retentionDays: 2557
+    indexerDeltaInterval: 10m
+    indexerMainInterval: 24h
+    # Secret holding the archive encryption key (key "grommunio-archive.key").
+    # Used to seed a fresh archive volume (restore / migration). A different
+    # key than the one already in the volume makes the pod refuse to start.
+    encryptionKey:
+      existingSecret: ""
+  keycloak:
+    enabled: false
+    url: ""
+    realm: ""
+    clientId: ""
+    # client secret: secrets.values.KEYCLOAK_CLIENT_SECRET or the existing secret
+
+# All passwords live in ONE Secret (default name <release>-grommunio-secrets).
+# Keys: ADMIN_PASS CHAT_ADMIN_PASS FILES_ADMIN_PASS ARCHIVE_ADMIN_PASS
+#       ARCHIVE_AUDIT_PASS MYSQL_PASS CHAT_MYSQL_PASS FILES_MYSQL_PASS
+#       OFFICE_MYSQL_PASS ARCHIVE_MYSQL_PASS OFFICE_JWT_SECRET KEYCLOAK_CLIENT_SECRET
+# Precedence per key: existingSecret > values.<KEY> > value already stored in
+# the cluster (lookup) > random. Generated Secrets carry
+# helm.sh/resource-policy: keep so passwords survive helm uninstall (the
+# volumes do too). lookup does not work with `helm template` / Argo CD;
+# use existingSecret or values there.
+secrets:
+  existingSecret: ""
+  # Bump (any string) after changing values in existingSecret to roll the pods;
+  # the containers read the passwords only at start.
+  existingSecretVersion: ""
+  autoGenerate: true
+  values: {}
+  #  ADMIN_PASS: "change-me"
+
+mariadb:
+  # Bundled single MariaDB instance holding all five databases.
+  enabled: true
+  # Secret with key MYSQL_ROOT_PASS; "" = generated and kept.
+  existingRootSecret: ""
+  config:
+    innodbBufferPoolSize: 512M
+    maxConnections: 500
+    # Extra lines appended to the server configuration
+    extra: ""
+  persistence:
+    size: 20Gi
+    storageClass: ""
+    existingClaim: ""
+    annotations: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  priorityClassName: ""
+  podAnnotations: {}
+  podLabels: {}
+
+# Used when mariadb.enabled=false. Passwords come from the chart secret.
+externalDatabase:
+  host: ""
+  port: 3306
+  # manage=true: a pre-install/pre-upgrade Job creates the databases and
+  # users on the external server using adminSecret (key MYSQL_ROOT_PASS).
+  manage: false
+  adminSecret: ""
+  adminUser: root
+  core:    { database: grommunio,  user: grommunio }
+  chat:    { database: grochat,    user: grochat }
+  files:   { database: grofiles,   user: grofiles }
+  office:  { database: groffice,   user: groffice }
+  archive: { database: groarchive, user: groarchive }
+
+# The certificate is always a kubernetes.io/tls Secret (tls.crt = leaf+chain,
+# tls.key, optional ca.crt) mounted into all three pods. Let's Encrypt inside
+# the container (SSL_INSTALL_TYPE=2 of docker-compose) is not available in
+# Kubernetes; use cert-manager instead.
+tls:
+  # selfSigned     : chart generates a CA and a server certificate (kept across upgrades)
+  # existingSecret : tls.existingSecret provided by you (any PKI)
+  # certManager    : chart renders a cert-manager Certificate (tls.certManager.issuerRef)
+  mode: selfSigned
+  # Name of the TLS Secret; "" = <release>-grommunio-tls
+  secretName: ""
+  existingSecret: ""
+  # Additional DNS names (besides fqdn and autodiscover.<domain>).
+  extraDnsNames: []
+  # Restart pods when the chart-managed TLS Secret changes (cert-watch inside
+  # the containers also picks up rotations without a restart).
+  rolloutOnChange: true
+  selfSigned:
+    caCommonName: ""        # default "grommunio CA (<fqdn>)"
+    validityDays: 3650
+  certManager:
+    issuerRef:
+      name: ""
+      kind: ClusterIssuer
+      group: cert-manager.io
+    duration: 2160h
+    renewBefore: 360h
+
+service:
+  # Public mail + web Service (one IP for the FQDN).
+  core:
+    # LoadBalancer | NodePort | ClusterIP (ClusterIP + externalIPs works on bare metal / k3s)
+    type: LoadBalancer
+    # Local preserves client IPs for postfix/rspamd/logs (single endpoint, so no imbalance).
+    externalTrafficPolicy: Local
+    loadBalancerIP: ""
+    loadBalancerClass: ""
+    loadBalancerSourceRanges: []
+    externalIPs: []
+    annotations: {}
+    ipFamilyPolicy: ""
+    ipFamilies: []
+    # http/https are removed from this Service automatically when ingress.enabled
+    ports:
+      smtp:       { enabled: true, port: 25,  nodePort: null }
+      http:       { enabled: true, port: 80,  nodePort: null }
+      https:      { enabled: true, port: 443, nodePort: null }
+      smtps:      { enabled: true, port: 465, nodePort: null }
+      submission: { enabled: true, port: 587, nodePort: null }
+      imap:       { enabled: true, port: 143, nodePort: null }
+      imaps:      { enabled: true, port: 993, nodePort: null }
+      pop3:       { enabled: true, port: 110, nodePort: null }
+      pop3s:      { enabled: true, port: 995, nodePort: null }
+      # Admin UI on the public IP (docker-compose parity). Off by default:
+      # use service.admin / ingress.admin / kubectl port-forward instead.
+      admin:      { enabled: false, port: 8443, nodePort: null }
+  # Admin UI Service (always rendered; ClusterIP by default).
+  admin:
+    type: ClusterIP
+    port: 8443
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    externalIPs: []
+    annotations: {}
+  # Internal Service used by archive/office (relay listener, hairpin HTTPS).
+  internal:
+    # Pin the ClusterIP so archive/office can map the FQDN to it via hostAliases
+    # (network.hairpin.mode=hostAliases). Leave empty on first install, read the
+    # assigned IP from NOTES and pin it afterwards, or use the runtime fallback.
+    clusterIP: ""
+
+ingress:
+  enabled: false
+  # CIDRs of the ingress controller (pod and/or node addresses) whose
+  # X-Forwarded-For header the core nginx trusts. REQUIRED with ingress.enabled;
+  # keep it as narrow as possible (anything inside can spoof client addresses).
+  realIpFrom: []
+  #  - 10.42.0.0/16
+  className: ""
+  # Controller for the re-encrypt (HTTPS backend) annotations: nginx | traefik | haproxy | none
+  controller: nginx
+  annotations: {}
+  # Additional host names routed to the webmail/EAS/DAV endpoints.
+  extraHosts: []
+  tls:
+    enabled: true
+    # "" = the chart TLS Secret (tls.secretName)
+    secretName: ""
+  admin:
+    enabled: false
+    host: ""
+    annotations: {}
+
+network:
+  # How archive/office reach https://<fqdn>/ (Files -> DAV, document server -> Files):
+  #   hostAliases : map fqdn to the internal core Service (service.internal.clusterIP
+  #                 when set, otherwise resolved at container start)
+  #   dns         : nothing, rely on public DNS and load balancer hairpin
+  hairpin:
+    mode: hostAliases
+  # Networks grommunio Files trusts as reverse proxies (the core nginx, i.e. the
+  # pod network; only core can reach Files when networkPolicy.enabled).
+  trustedProxyCIDRs:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - fc00::/7
+  # Postfix listener for archive/office (never published externally).
+  internalRelay:
+    port: 2526
+    # false: relays only to hosted domains (permit_auth_destination).
+    # true : Files share-by-mail to external recipients works; requires networkPolicy.enabled.
+    allowExternalRecipients: false
+  # Extra postfix mynetworks entries for the public listeners (space separated CIDRs).
+  # Normally empty: anything listed here may relay without authentication.
+  postfixMynetworks: ""
+  # Override the DNS server nginx uses; "" = from /etc/resolv.conf (CoreDNS).
+  nginxResolver: ""
+  # false sets postfix inet_protocols=ipv4 (avoids AAAA lookups on IPv4-only clusters).
+  ipv6: true
+
+networkPolicy:
+  # Ingress rules: core public ports from allowedSourceRanges, archive/office
+  # only from core, MariaDB only from the release's pods. Enforcement depends
+  # on the CNI (k3s enforces by default).
+  enabled: true
+  core:
+    allowedSourceRanges:
+      - 0.0.0.0/0
+      - ::/0
+  admin:
+    # Peers allowed to reach the admin port (9443) in addition to this namespace
+    # (NetworkPolicyPeer list). `kubectl port-forward` traffic originates from the
+    # node; add its address range here if your CNI enforces policy on it.
+    from: []
+    # true: any source may reach 9443 (then restrict with service.admin / ingress.admin)
+    allowAll: false
+  # Peers allowed to reach the HTTPS backends when ingress.enabled. REQUIRED
+  # with ingress.enabled + networkPolicy.enabled.
+  ingressController:
+    namespaceSelector: {}
+    #  matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+    podSelector: {}
+  egress:
+    enabled: false
+    extraCIDRs: []
+
+# size / storageClass / annotations only take effect when a PVC is created
+# (first install). StatefulSet volumeClaimTemplates are immutable: see
+# docs/UPGRADING.md "Changing storage" before changing them on a running release.
+persistence:
+  core:
+    # Mailboxes (/var/lib/gromox): sqlite files, IOPS-heavy
+    data:
+      size: 50Gi
+      storageClass: ""
+      existingClaim: ""
+      annotations: {}
+    # Service state: admin-api, antispam, DAV, webmail sessions/index, chat
+    # uploads, redis, postfix spool (subPaths of one volume)
+    state:
+      size: 20Gi
+      storageClass: ""
+      existingClaim: ""
+      annotations: {}
+    # Configuration that must survive: /etc/gromox (X500 id, init markers),
+    # admin-api JWT signing key, license, chat config.json
+    config:
+      size: 1Gi
+      storageClass: ""
+      existingClaim: ""
+      annotations: {}
+  archive:
+    # Archived mail store, search index and the encryption key
+    data:
+      size: 100Gi
+      storageClass: ""
+      existingClaim: ""
+      annotations: {}
+  office:
+    # Files: config.php and user data
+    files:
+      size: 50Gi
+      storageClass: ""
+      existingClaim: ""
+      annotations: {}
+    # Document server cache (emptyDir)
+    cacheSizeLimit: 5Gi
+
+core:
+  resources:
+    requests:
+      cpu: "1"
+      memory: 3Gi
+    limits:
+      memory: 6Gi
+  probes:
+    startup:   { periodSeconds: 10, failureThreshold: 120, timeoutSeconds: 10 }
+    liveness:  { periodSeconds: 60, failureThreshold: 3,  timeoutSeconds: 15 }
+    readiness: { periodSeconds: 20, failureThreshold: 3,  timeoutSeconds: 10 }
+  terminationGracePeriodSeconds: 120
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  priorityClassName: ""
+  podAnnotations: {}
+  podLabels: {}
+  extraVolumes: []
+  extraVolumeMounts: []
+  # Additional environment for this container only
+  extraEnv: []
+
+archive:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 3Gi
+  probes:
+    startup:   { periodSeconds: 10, failureThreshold: 120, timeoutSeconds: 10 }
+    liveness:  { periodSeconds: 60, failureThreshold: 3,  timeoutSeconds: 15 }
+    readiness: { periodSeconds: 20, failureThreshold: 3,  timeoutSeconds: 10 }
+  terminationGracePeriodSeconds: 60
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  priorityClassName: ""
+  podAnnotations: {}
+  podLabels: {}
+  extraVolumes: []
+  extraVolumeMounts: []
+  extraEnv: []
+
+office:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 6Gi
+  probes:
+    startup:   { periodSeconds: 10, failureThreshold: 120, timeoutSeconds: 10 }
+    liveness:  { periodSeconds: 60, failureThreshold: 3,  timeoutSeconds: 15 }
+    readiness: { periodSeconds: 20, failureThreshold: 3,  timeoutSeconds: 10 }
+  terminationGracePeriodSeconds: 60
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  priorityClassName: ""
+  podAnnotations: {}
+  podLabels: {}
+  extraVolumes: []
+  extraVolumeMounts: []
+  extraEnv: []
+
+# Security context shared by the three application containers. They run
+# supervisord as root (the services drop privileges themselves), with all
+# capabilities dropped except the ones needed to do so. Pod Security
+# Admission level: baseline.
+podSecurity:
+  # false = run the pod in a user namespace (Kubernetes >=1.33 beta on by default;
+  # needs a runtime/CSI with idmapped mounts)
+  hostUsers: true
+  allowPrivilegeEscalation: false
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - FSETID
+      - SETUID
+      - SETGID
+      - SETPCAP
+      - KILL
+      - AUDIT_WRITE
+  # Log every supervised program to the pod's stdout/stderr (kubectl logs).
+  logToStdout: true
+
+# Pre-upgrade Job that keeps the database users/passwords in step with the
+# chart secret (and creates the databases on a managed external server).
+dbSync:
+  enabled: true
+  # How long the Job waits for the database before giving up (the upgrade is
+  # not failed). Keep it below the helm --timeout (default 5m).
+  waitSeconds: 120
+
+# One-off maintenance switches (set, upgrade, unset again). See the gromox-container README.
+maintenance:
+  # Re-run the one-time initialisation of core (certificate check, admin password reset)
+  forceReconfig: false
+  # DANGER: drops and recreates the core database on the next start (needs the root secret)
+  clearDbs: false
+  # Let the archive create a new encryption key although the DB references mails
+  archiveNewKey: false
+  # Seconds the containers wait for their database before giving up
+  dbWaitSeconds: 600
+
+# Logical database dumps to a PVC (CronJob). Volume snapshots / Velero cover the rest.
+backup:
+  enabled: false
+  # Also dump once right after each install/upgrade (binds the PVC immediately)
+  initialDump: true
+  schedule: "0 2 * * *"
+  retentionDays: 14
+  persistence:
+    size: 20Gi
+    storageClass: ""
+    existingClaim: ""
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { memory: 1Gi }
+
+# `helm test` pod
+tests:
+  enabled: true
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Extra objects rendered as-is (strings are templated).
+extraObjects: []

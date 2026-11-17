@@ -1,0 +1,94 @@
+{{- include "grommunio.validate" . -}}
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $dbHost := include "grommunio.dbHost" . -}}
+{{- $ext := .Values.externalDatabase -}}
+{{- $internalSvc := include "grommunio.svcFqdn" (dict "root" . "name" (printf "%s-core-internal" $fullname)) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-env
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.labels" . | nindent 4 }}
+data:
+  # identity
+  FQDN: {{ .Values.grommunio.fqdn | quote }}
+  DOMAIN: {{ .Values.grommunio.domain | quote }}
+  TIMEZONE: {{ .Values.grommunio.timezone | quote }}
+  RELAYHOST: {{ .Values.grommunio.relayhost | quote }}
+  INDEX_SCHEDULE: {{ .Values.grommunio.indexSchedule | quote }}
+  {{- with .Values.grommunio.x500 }}
+  X500: {{ . | quote }}
+  {{- end }}
+  # features
+  ENABLE_CHAT: {{ .Values.features.chat.enabled | quote }}
+  CHAT_CONFIG: /etc/grommunio-chat/config.json
+  ENABLE_FILES: {{ .Values.features.files.enabled | quote }}
+  ENABLE_OFFICE: {{ .Values.features.office.enabled | quote }}
+  ENABLE_ARCHIVE: {{ .Values.features.archive.enabled | quote }}
+  ARCHIVE_RETENTION_DAYS: {{ .Values.features.archive.retentionDays | quote }}
+  ARCHIVE_INDEXER_DELTA_INTERVAL: {{ .Values.features.archive.indexerDeltaInterval | quote }}
+  ARCHIVE_INDEXER_MAIN_INTERVAL: {{ .Values.features.archive.indexerMainInterval | quote }}
+  {{- if .Values.features.archive.encryptionKey.existingSecret }}
+  ARCHIVE_KEY_FILE: /etc/grommunio-archive/provided/grommunio-archive.key
+  {{- end }}
+  ENABLE_KEYCLOAK: {{ .Values.features.keycloak.enabled | quote }}
+  KEYCLOAK_URL: {{ .Values.features.keycloak.url | quote }}
+  KEYCLOAK_REALM: {{ .Values.features.keycloak.realm | quote }}
+  KEYCLOAK_CLIENT_ID: {{ .Values.features.keycloak.clientId | quote }}
+  # databases
+  MYSQL_HOST: {{ $dbHost | quote }}
+  MYSQL_USER: {{ $ext.core.user | quote }}
+  MYSQL_DB: {{ $ext.core.database | quote }}
+  CHAT_MYSQL_HOST: {{ $dbHost | quote }}
+  CHAT_MYSQL_USER: {{ $ext.chat.user | quote }}
+  CHAT_MYSQL_DB: {{ $ext.chat.database | quote }}
+  FILES_MYSQL_HOST: {{ $dbHost | quote }}
+  FILES_MYSQL_USER: {{ $ext.files.user | quote }}
+  FILES_MYSQL_DB: {{ $ext.files.database | quote }}
+  OFFICE_MYSQL_HOST: {{ $dbHost | quote }}
+  OFFICE_MYSQL_USER: {{ $ext.office.user | quote }}
+  OFFICE_MYSQL_DB: {{ $ext.office.database | quote }}
+  ARCHIVE_MYSQL_HOST: {{ $dbHost | quote }}
+  ARCHIVE_MYSQL_USER: {{ $ext.archive.user | quote }}
+  ARCHIVE_MYSQL_DB: {{ $ext.archive.database | quote }}
+  DB_WAIT_SECONDS: {{ .Values.maintenance.dbWaitSeconds | quote }}
+  # service discovery (fully qualified: nginx has no search list)
+  CORE_HOST: {{ $internalSvc | quote }}
+  ARCHIVE_HOST: {{ include "grommunio.svcFqdn" (dict "root" . "name" (printf "%s-archive" $fullname)) | quote }}
+  OFFICE_HOST: {{ include "grommunio.svcFqdn" (dict "root" . "name" (printf "%s-office" $fullname)) | quote }}
+  FILES_HOST: {{ include "grommunio.svcFqdn" (dict "root" . "name" (printf "%s-office" $fullname)) | quote }}
+  {{- if and (eq .Values.network.hairpin.mode "hostAliases") (not .Values.service.internal.clusterIP) }}
+  # archive/office map the FQDN to this Service's address in /etc/hosts at start
+  FQDN_INTERNAL_TARGET: {{ $internalSvc | quote }}
+  {{- end }}
+  # TLS: always from the mounted Kubernetes Secret
+  SSL_INSTALL_TYPE: "3"
+  SSL_BUNDLE: /etc/grommunio-common/ssl/own/tls.crt
+  SSL_KEY: /etc/grommunio-common/ssl/own/tls.key
+  SSL_CA: /etc/grommunio-common/ssl/own/ca.crt
+  CERT_WATCH: "true"
+  # nginx
+  NGINX_RESOLVER: {{ .Values.network.nginxResolver | quote }}
+  {{- if .Values.ingress.enabled }}
+  NGINX_REAL_IP_FROM: {{ join " " .Values.ingress.realIpFrom | quote }}
+  NGINX_REAL_IP_HEADER: X-Forwarded-For
+  {{- end }}
+  {{- if .Values.ingress.admin.enabled }}
+  ADMIN_URL: {{ printf "https://%s" .Values.ingress.admin.host | quote }}
+  {{- else if .Values.service.core.ports.admin.enabled }}
+  ADMIN_URL: {{ printf "https://%s:%v" .Values.grommunio.fqdn .Values.service.core.ports.admin.port | quote }}
+  {{- end }}
+  TRUSTED_PROXIES: {{ join " " .Values.network.trustedProxyCIDRs | quote }}
+  # postfix
+  # loopback only on the public listeners (never trust the pod network: kube-proxy may SNAT)
+  POSTFIX_MYNETWORKS: {{ .Values.network.postfixMynetworks | quote }}
+  POSTFIX_INTERNAL_RELAY_PORT: {{ .Values.network.internalRelay.port | quote }}
+  POSTFIX_INTERNAL_RELAY_POLICY: {{ ternary "permit" "auth_destination" .Values.network.internalRelay.allowExternalRecipients | quote }}
+  POSTFIX_INET_PROTOCOLS: {{ ternary "all" "ipv4" .Values.network.ipv6 | quote }}
+  # container behaviour
+  LOG_TO_STDOUT: {{ .Values.podSecurity.logToStdout | quote }}
+  LOGFILE: {{ ternary "/dev/stdout" "/var/log/grommunio-setup.log" .Values.podSecurity.logToStdout | quote }}
+  FORCE_RECONFIG: {{ .Values.maintenance.forceReconfig | quote }}
+  CLEAR_DBS: {{ .Values.maintenance.clearDbs | quote }}
+  ARCHIVE_NEW_KEY: {{ .Values.maintenance.archiveNewKey | quote }}

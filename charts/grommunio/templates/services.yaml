@@ -1,0 +1,229 @@
+{{- $fullname := include "grommunio.fullname" . -}}
+{{- $core := .Values.service.core -}}
+{{- $ports := $core.ports -}}
+{{/* container ports of gromox-core */}}
+{{- $target := dict "smtp" 2525 "http" 8081 "https" 8443 "smtps" 2465 "submission" 2587 "imap" 2143 "imaps" 2993 "pop3" 2110 "pop3s" 2995 "admin" 9443 -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-core
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "core") | nindent 4 }}
+    grommunio.io/service: public
+  {{- with $core.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $core.type }}
+  {{- if ne $core.type "ClusterIP" }}
+  externalTrafficPolicy: {{ $core.externalTrafficPolicy }}
+  {{- else if $core.externalIPs }}
+  externalTrafficPolicy: {{ $core.externalTrafficPolicy }}
+  {{- end }}
+  {{- with $core.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- with $core.loadBalancerClass }}
+  loadBalancerClass: {{ . }}
+  {{- end }}
+  {{- with $core.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $core.externalIPs }}
+  externalIPs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $core.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with $core.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "core") | nindent 4 }}
+  ports:
+    {{- range $name, $p := $ports }}
+    {{- $skip := and $.Values.ingress.enabled (or (eq $name "http") (eq $name "https")) }}
+    {{- if and $p.enabled (not $skip) }}
+    - name: {{ $name }}
+      port: {{ $p.port }}
+      targetPort: {{ index $target $name }}
+      protocol: TCP
+      {{- if and $p.nodePort (ne $core.type "ClusterIP") }}
+      nodePort: {{ $p.nodePort }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+---
+# Admin UI (and rspamd UI behind it). ClusterIP by default: expose through
+# service.admin.type, ingress.admin, or `kubectl port-forward`.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-core-admin
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "core") | nindent 4 }}
+    grommunio.io/service: admin
+  {{- with .Values.service.admin.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.admin.type }}
+  {{- if ne .Values.service.admin.type "ClusterIP" }}
+  externalTrafficPolicy: Local
+  {{- end }}
+  {{- with .Values.service.admin.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- with .Values.service.admin.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.service.admin.externalIPs }}
+  externalIPs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "core") | nindent 4 }}
+  ports:
+    - name: admin
+      port: {{ .Values.service.admin.port }}
+      targetPort: 9443
+      protocol: TCP
+---
+# Internal Service: archive/office relay mail through the dedicated postfix
+# listener and reach the web endpoints (hairpin to the FQDN); Ingress backend.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-core-internal
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "core") | nindent 4 }}
+    grommunio.io/service: internal
+spec:
+  type: ClusterIP
+  {{- with .Values.service.internal.clusterIP }}
+  clusterIP: {{ . }}
+  {{- end }}
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "core") | nindent 4 }}
+  ports:
+    - name: smtp-internal
+      port: 2525
+      targetPort: {{ .Values.network.internalRelay.port }}
+      protocol: TCP
+    - name: http
+      port: 80
+      targetPort: 8081
+      protocol: TCP
+    - name: https
+      port: 443
+      targetPort: 8443
+      protocol: TCP
+    - name: admin
+      port: 8443
+      targetPort: 9443
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-core-hl
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "core") | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "core") | nindent 4 }}
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+{{- if .Values.features.archive.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-archive
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "archive") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "archive") | nindent 4 }}
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+    - name: archive-smtp
+      port: 2693
+      targetPort: 2693
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-archive-hl
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "archive") | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "archive") | nindent 4 }}
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+{{- end }}
+{{- if include "grommunio.officePodEnabled" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-office
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "office") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "office") | nindent 4 }}
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-office-hl
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grommunio.componentLabels" (dict "root" . "component" "office") | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "grommunio.selectorLabels" (dict "root" . "component" "office") | nindent 4 }}
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+{{- end }}
