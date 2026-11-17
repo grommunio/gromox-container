@@ -84,8 +84,9 @@ under its unique build tag, signed by digest, and only then tagged
 `<version>`/`latest`, so the moving tags never point at an unsigned image.
 
 Registries that refuse unsigned images (Harbor with cosign enforcement) need
-a staging project without enforcement: `-s staging` pushes and signs there,
-then Harbor copies image, signature and tags into the channel project
+a staging project without enforcement: `-s staging` pushes and signs as
+`staging/<channel>/gromox-<component>`, then Harbor copies image, signature
+and tags into the channel project
 (`HARBOR_USER`/`HARBOR_PASSWORD` for the API). `tools/publish-chart.sh` does
 the same for the Helm chart.
 

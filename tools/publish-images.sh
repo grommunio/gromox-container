@@ -26,9 +26,10 @@
 # --no-sign is given.
 #
 # Staging (-s, Harbor only): for registries that refuse unsigned images, the
-# image is pushed and signed in STAGING_PROJECT and then copied into the
-# channel project by Harbor (the copy carries the signature and moves the
-# tags in one step). Needs HARBOR_USER/HARBOR_PASSWORD for the Harbor API.
+# image is pushed and signed as STAGING_PROJECT/<channel>/gromox-<component>
+# and then copied into the channel project by Harbor (the copy carries the
+# signature and moves the tags in one step). Needs HARBOR_USER/HARBOR_PASSWORD
+# for the Harbor API.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -86,11 +87,11 @@ push_digest() {
   printf '%s\n' "$out" | sed -n 's/.*digest: \(sha256:[0-9a-f]\{64\}\).*/\1/p' | tail -n 1
 }
 
-# Harbor: copy repo@digest from the staging project into the channel project
+# Harbor: copy repo@digest from the staging repository into the channel project
 promote() {
   local repo=$1 digest=$2 code
   code=$(curl -sS -o /dev/stderr -w '%{http_code}' -u "${HARBOR_USER}:${HARBOR_PASSWORD}" -X POST \
-    "https://${REGISTRY}/api/v2.0/projects/${CHANNEL}/repositories/${repo}/artifacts?from=${STAGING}/${repo}@${digest}")
+    "https://${REGISTRY}/api/v2.0/projects/${CHANNEL}/repositories/${repo}/artifacts?from=${STAGING}/${CHANNEL}/${repo}@${digest}")
   [ "$code" = 201 ] || { echo "promote ${repo}@${digest} failed: HTTP ${code}" >&2; return 1; }
 }
 
@@ -99,7 +100,8 @@ CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 for c in "${COMPONENTS[@]}"; do
   repo="gromox-${c}"
   final="${REGISTRY}/${CHANNEL}/${repo}"
-  target="${REGISTRY}/${STAGING:-$CHANNEL}/${repo}"
+  target=$final
+  [ -z "$STAGING" ] || target="${REGISTRY}/${STAGING}/${CHANNEL}/${repo}"
   moving=("${TAG}")
   [ "$LATEST" = 1 ] && moving+=(latest)
   echo ">>> building ${final}:${TAG}-${BUILD_ID} (${CHANNEL})"
