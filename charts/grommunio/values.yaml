@@ -60,7 +60,7 @@ image:
     pullPolicy: IfNotPresent
   mariadb:
     registry: ""
-    # Mirrored daily from docker.io/library/mariadb (public, no credentials)
+    # docker.io/library/mariadb + current security updates, rebuilt daily (public)
     repository: community/mariadb
     tag: "11.8"
     digest: ""

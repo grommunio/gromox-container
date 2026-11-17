@@ -6,7 +6,7 @@ grommunio publishes the images and the Helm chart on
 | Path | Access | Content |
 |---|---|---|
 | `community/gromox-{core,archive,office}` | public, no login | built from the grommunio community packages |
-| `community/mariadb` | public | mirror of `docker.io/library/mariadb:11.8` used by the Helm chart |
+| `community/mariadb` | public | official `docker.io/library/mariadb:11.8` with current security updates (`mariadb/Dockerfile`), used by the Helm chart |
 | `community/charts/grommunio` | public | Helm chart (OCI) |
 | `supported/gromox-{core,archive,office}` | grommunio subscription credentials | built from the grommunio supported packages |
 
@@ -23,7 +23,7 @@ reproducible deployments.
 
 ## Signatures
 
-All images, the MariaDB mirror and the Helm chart are signed with
+All images, the MariaDB image and the Helm chart are signed with
 [cosign](https://docs.sigstore.dev/cosign/). The registry refuses to serve
 unsigned images. The public key is [`cosign.pub`](../cosign.pub) in this
 repository:

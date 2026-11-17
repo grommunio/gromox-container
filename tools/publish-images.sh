@@ -6,7 +6,8 @@
 #                           [--no-sign] [--no-cache] [component...]
 #
 # Images: <REGISTRY>/<channel>/gromox-<component>:<TAG> and :<TAG>-<BUILD_ID>
-# (and :latest with --latest).
+# (and :latest with --latest). Components: core archive office (gromox-<c>/),
+# mariadb (mariadb/, the chart's database image; build it with -t <MariaDB version>).
 #   community  packages from download.grommunio.com/community (public project)
 #   supported  packages from download.grommunio.com/supported (private project);
 #              needs SUPPORTED_CREDENTIALS=<file> in zypper credentials format:
@@ -67,8 +68,14 @@ case "$CHANNEL" in
     SECRET=(--secret "id=grommunio_repo,src=${SUPPORTED_CREDENTIALS}") ;;
   *) echo "channel must be community or supported" >&2; exit 2 ;;
 esac
+# component -> image directory (= repository name)
+image_dir() {
+  if [ -f "gromox-$1/Dockerfile" ]; then echo "gromox-$1"
+  elif [ -f "$1/Dockerfile" ]; then echo "$1"
+  fi
+}
 for c in "${COMPONENTS[@]}"; do
-  [ -f "gromox-${c}/Dockerfile" ] || { echo "unknown component ${c}" >&2; exit 2; }
+  [ -n "$(image_dir "$c")" ] || { echo "unknown component ${c}" >&2; exit 2; }
 done
 [ -n "$TAG" ] || { echo "no TAG and no appVersion in charts/grommunio/Chart.yaml" >&2; exit 2; }
 if [ "$PUSH" = 1 ] && [ "$SIGN" = 1 ]; then
@@ -98,7 +105,7 @@ promote() {
 REVISION=$(git rev-parse HEAD 2>/dev/null || echo unknown)
 CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 for c in "${COMPONENTS[@]}"; do
-  repo="gromox-${c}"
+  repo=$(image_dir "$c")
   final="${REGISTRY}/${CHANNEL}/${repo}"
   target=$final
   [ -z "$STAGING" ] || target="${REGISTRY}/${STAGING}/${CHANNEL}/${repo}"
@@ -113,7 +120,7 @@ for c in "${COMPONENTS[@]}"; do
     --label "org.opencontainers.image.created=${CREATED}" \
     --label "org.opencontainers.image.source=https://github.com/grommunio/gromox-container" \
     --label "org.opencontainers.image.vendor=grommunio GmbH" \
-    -t "${target}:${TAG}-${BUILD_ID}" -f "gromox-${c}/Dockerfile" .
+    -t "${target}:${TAG}-${BUILD_ID}" -f "${repo}/Dockerfile" .
   [ "$PUSH" = 1 ] || continue
 
   # push the unique build tag, sign its digest, then move the other tags
