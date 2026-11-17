@@ -1,0 +1,19 @@
+#!/bin/sh
+# gosu replacement on top of setpriv(1): gosu USER[:GROUP] COMMAND [ARGS...]
+# USER and GROUP may be names or numeric ids, as with gosu.
+set -e
+spec=$1; shift
+user=${spec%%:*}
+group=
+[ "$spec" = "$user" ] || group=${spec#*:}
+uid=$(id -u "$user" 2>/dev/null || echo "$user")
+# already running as that user (e.g. the Helm chart, uid 999): nothing to drop
+if [ "$(id -u)" = "$uid" ] && [ -z "$group" ]; then exec "$@"; fi
+if [ -n "$group" ]; then
+	gid=$(getent group "$group" | cut -d: -f3); gid=${gid:-$group}
+	exec setpriv --reuid="$uid" --regid="$gid" --clear-groups -- "$@"
+elif name=$(id -un "$uid" 2>/dev/null); then
+	exec setpriv --reuid="$uid" --regid="$(id -g "$name")" --init-groups -- "$@"
+else
+	exec setpriv --reuid="$uid" --regid="$uid" --clear-groups -- "$@"
+fi

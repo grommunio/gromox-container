@@ -75,7 +75,7 @@ All images come from `container.grommunio.com`:
 |---|---|---|
 | `community/gromox-{core,archive,office}` | public, no login | built from the community packages |
 | `supported/gromox-{core,archive,office}` | subscription customers | built from the supported packages |
-| `community/mariadb` | public | mirror of `docker.io/library/mariadb:11.8`, refreshed daily |
+| `community/mariadb` | public | official `docker.io/library/mariadb:11.8` with current security updates, rebuilt daily |
 | `community/charts/grommunio` | public | this chart (OCI) |
 
 Tags: `<appVersion>` (for example `2026.11`) moves to the newest build of
@@ -84,13 +84,13 @@ keeps the last 14 builds of each image. Pin a digest
 (`image.<component>.digest`) for reproducible deployments, and keep a copy in
 your own registry if you need a build for longer.
 
-Supported edition, with the robot account you received from grommunio:
+Supported edition, with your grommunio subscription credentials:
 
 ```yaml
 global:
   edition: supported
   imageCredentials:
-    username: robot$supported+customer-1234
+    username: <subscription user>
     password: "<secret>"
 ```
 
@@ -101,7 +101,7 @@ and reference it instead:
 ```bash
 kubectl -n grommunio create secret docker-registry grommunio-registry \
   --docker-server=container.grommunio.com \
-  --docker-username='robot$supported+customer-1234' --docker-password='<secret>'
+  --docker-username='<subscription user>' --docker-password='<secret>'
 ```
 
 ```yaml
@@ -187,7 +187,7 @@ docker-compose) is not available on Kubernetes; use cert-manager.
 
 ## Database
 
-By default one MariaDB (`container.grommunio.com/community/mariadb:11.8`, a mirror of the official image) is deployed with
+By default one MariaDB (`container.grommunio.com/community/mariadb:11.8`, the official image with current security updates) is deployed with
 the five databases `grommunio`, `grochat`, `grofiles`, `groffice`,
 `groarchive`, created by an init script on first start. A `pre-upgrade` Job
 (`dbSync`) keeps the users' passwords in step with the chart Secret.

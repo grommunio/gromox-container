@@ -6,7 +6,8 @@
 #                           [--no-sign] [--no-cache] [component...]
 #
 # Images: <REGISTRY>/<channel>/gromox-<component>:<TAG> and :<TAG>-<BUILD_ID>
-# (and :latest with --latest).
+# (and :latest with --latest). Components: core archive office (gromox-<c>/),
+# mariadb (mariadb/, the chart's database image; build it with -t <MariaDB version>).
 #   community  packages from download.grommunio.com/community (public project)
 #   supported  packages from download.grommunio.com/supported (private project);
 #              needs SUPPORTED_CREDENTIALS=<file> in zypper credentials format:
@@ -26,9 +27,10 @@
 # --no-sign is given.
 #
 # Staging (-s, Harbor only): for registries that refuse unsigned images, the
-# image is pushed and signed in STAGING_PROJECT and then copied into the
-# channel project by Harbor (the copy carries the signature and moves the
-# tags in one step). Needs HARBOR_USER/HARBOR_PASSWORD for the Harbor API.
+# image is pushed and signed as STAGING_PROJECT/<channel>/gromox-<component>
+# and then copied into the channel project by Harbor (the copy carries the
+# signature and moves the tags in one step). Needs HARBOR_USER/HARBOR_PASSWORD
+# for the Harbor API.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -66,8 +68,14 @@ case "$CHANNEL" in
     SECRET=(--secret "id=grommunio_repo,src=${SUPPORTED_CREDENTIALS}") ;;
   *) echo "channel must be community or supported" >&2; exit 2 ;;
 esac
+# component -> image directory (= repository name)
+image_dir() {
+  if [ -f "gromox-$1/Dockerfile" ]; then echo "gromox-$1"
+  elif [ -f "$1/Dockerfile" ]; then echo "$1"
+  fi
+}
 for c in "${COMPONENTS[@]}"; do
-  [ -f "gromox-${c}/Dockerfile" ] || { echo "unknown component ${c}" >&2; exit 2; }
+  [ -n "$(image_dir "$c")" ] || { echo "unknown component ${c}" >&2; exit 2; }
 done
 [ -n "$TAG" ] || { echo "no TAG and no appVersion in charts/grommunio/Chart.yaml" >&2; exit 2; }
 if [ "$PUSH" = 1 ] && [ "$SIGN" = 1 ]; then
@@ -86,20 +94,21 @@ push_digest() {
   printf '%s\n' "$out" | sed -n 's/.*digest: \(sha256:[0-9a-f]\{64\}\).*/\1/p' | tail -n 1
 }
 
-# Harbor: copy repo@digest from the staging project into the channel project
+# Harbor: copy repo@digest from the staging repository into the channel project
 promote() {
   local repo=$1 digest=$2 code
   code=$(curl -sS -o /dev/stderr -w '%{http_code}' -u "${HARBOR_USER}:${HARBOR_PASSWORD}" -X POST \
-    "https://${REGISTRY}/api/v2.0/projects/${CHANNEL}/repositories/${repo}/artifacts?from=${STAGING}/${repo}@${digest}")
+    "https://${REGISTRY}/api/v2.0/projects/${CHANNEL}/repositories/${repo}/artifacts?from=${STAGING}/${CHANNEL}/${repo}@${digest}")
   [ "$code" = 201 ] || { echo "promote ${repo}@${digest} failed: HTTP ${code}" >&2; return 1; }
 }
 
 REVISION=$(git rev-parse HEAD 2>/dev/null || echo unknown)
 CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 for c in "${COMPONENTS[@]}"; do
-  repo="gromox-${c}"
+  repo=$(image_dir "$c")
   final="${REGISTRY}/${CHANNEL}/${repo}"
-  target="${REGISTRY}/${STAGING:-$CHANNEL}/${repo}"
+  target=$final
+  [ -z "$STAGING" ] || target="${REGISTRY}/${STAGING}/${CHANNEL}/${repo}"
   moving=("${TAG}")
   [ "$LATEST" = 1 ] && moving+=(latest)
   echo ">>> building ${final}:${TAG}-${BUILD_ID} (${CHANNEL})"
@@ -111,7 +120,7 @@ for c in "${COMPONENTS[@]}"; do
     --label "org.opencontainers.image.created=${CREATED}" \
     --label "org.opencontainers.image.source=https://github.com/grommunio/gromox-container" \
     --label "org.opencontainers.image.vendor=grommunio GmbH" \
-    -t "${target}:${TAG}-${BUILD_ID}" -f "gromox-${c}/Dockerfile" .
+    -t "${target}:${TAG}-${BUILD_ID}" -f "${repo}/Dockerfile" .
   [ "$PUSH" = 1 ] || continue
 
   # push the unique build tag, sign its digest, then move the other tags

@@ -31,12 +31,14 @@ RUN ln -sf /usr/share/zoneinfo/Europe/Vienna /etc/localtime && \
 # secret in zypper credentials format (username=... / password=...):
 #   docker build --build-arg GROMMUNIO_CHANNEL=supported \
 #     --secret id=grommunio_repo,src=/path/to/credentials ...
-# The secret is mounted only while zypper runs and is not part of any layer.
+# zypper needs a writable credentials file, so the secret is copied into a
+# tmpfs for each RUN that uses the repository; it is not part of any layer.
 ARG GROMMUNIO_CHANNEL=community
 LABEL com.grommunio.channel="${GROMMUNIO_CHANNEL}"
 ENV GROMMUNIO_CHANNEL="${GROMMUNIO_CHANNEL}"
 
-RUN	--mount=type=secret,id=grommunio_repo,target=/etc/zypp/credentials.d/grommunio \
+RUN	--mount=type=secret,id=grommunio_repo --mount=type=tmpfs,target=/etc/zypp/credentials.d \
+	{ [ ! -s /run/secrets/grommunio_repo ] || install -m 0600 /run/secrets/grommunio_repo /etc/zypp/credentials.d/grommunio; } && \
 	curl -fsSL https://download.grommunio.com/RPM-GPG-KEY-grommunio > gr.key && \
 	  rpm --import gr.key && rm -f gr.key && \
 	  case "${GROMMUNIO_CHANNEL}" in \
@@ -54,7 +56,8 @@ RUN	--mount=type=secret,id=grommunio_repo,target=/etc/zypp/credentials.d/grommun
 # util-linux-systemd provides /usr/bin/logger, used by the packaged indexer scripts.
 # The archive web UI needs more PHP extensions than the package pulls in
 # (iconv/ctype for MIME decoding, mbstring, zip, ldap, intl, ...).
-RUN --mount=type=secret,id=grommunio_repo,target=/etc/zypp/credentials.d/grommunio \
+RUN --mount=type=secret,id=grommunio_repo --mount=type=tmpfs,target=/etc/zypp/credentials.d \
+    { [ ! -s /run/secrets/grommunio_repo ] || install -m 0600 /run/secrets/grommunio_repo /etc/zypp/credentials.d/grommunio; } && \
     zypper --non-interactive install -y vim mysql \
          php8-mysql php8-cli php8-openssl php-fpm php-gd grommunio-archive sphinx nginx jq grommunio-common \
          php8-iconv php8-ctype php8-mbstring php8-zip php8-zlib php8-curl php8-ldap php8-intl php8-bcmath php8-dom php8-posix php8-exif php8-fileinfo \
@@ -68,7 +71,8 @@ RUN --mount=type=secret,id=grommunio_repo,target=/etc/zypp/credentials.d/grommun
               php8-iconv php8-ctype php8-mbstring php8-zip php8-zlib php8-curl php8-ldap php8-intl php8-bcmath php8-dom php8-posix php8-exif php8-fileinfo; }
 
 # Install supervisord (Python 3.13 is the system default on openSUSE Leap 16)
-RUN --mount=type=secret,id=grommunio_repo,target=/etc/zypp/credentials.d/grommunio \
+RUN --mount=type=secret,id=grommunio_repo --mount=type=tmpfs,target=/etc/zypp/credentials.d \
+    { [ ! -s /run/secrets/grommunio_repo ] || install -m 0600 /run/secrets/grommunio_repo /etc/zypp/credentials.d/grommunio; } && \
     zypper -n install -y python313-pip && \
     pip3.13 install --no-cache-dir supervisor && \
     zypper clean -a

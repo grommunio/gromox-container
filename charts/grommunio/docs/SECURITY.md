@@ -80,16 +80,18 @@ OpenShift: the application pods need the `anyuid` SCC.
   credentials are passed to the build as a BuildKit secret and are not part
   of any image layer. Every push is scanned by Trivy in the registry. Pin
   with `image.<c>.digest`.
-* Signatures: images, the MariaDB mirror and the chart are signed with
+* Signatures: images, the MariaDB image and the chart are signed with
   cosign; the registry serves only signed images. Verify with
   `cosign verify --key cosign.pub <image>` (key and fingerprint: `docs/REGISTRY.md`
   in the gromox-container repository) or enforce in the cluster with Kyverno
   `verifyImages` / Sigstore policy-controller.
-* Supported-edition pull credentials are per-customer, pull-only robot
-  accounts with an expiry date. Prefer a self-managed `imagePullSecrets`
+* Supported-edition pull credentials are the customer's grommunio
+  subscription credentials, limited to pull and valid while the subscription
+  is active. Prefer a self-managed `imagePullSecrets`
   entry over `global.imageCredentials` so the password is not stored in the
   Helm release.
-* MariaDB: `container.grommunio.com/community/mariadb`, a daily mirror of the
-  official `docker.io/library/mariadb` image, pinned minor version.
+* MariaDB: `container.grommunio.com/community/mariadb`, the official
+  `docker.io/library/mariadb` image (pinned minor version) with the current
+  Ubuntu security updates and without gosu, rebuilt daily from `mariadb/Dockerfile`.
 * Chart: OCI artifact, signed with cosign like the images:
   `cosign verify --key cosign.pub container.grommunio.com/community/charts/grommunio:<version>`.

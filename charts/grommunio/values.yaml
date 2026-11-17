@@ -30,7 +30,7 @@ global:
   # Secret yourself (kubectl create secret docker-registry ...) and list it in
   # imagePullSecrets.
   imageCredentials:
-    username: ""          # robot account, e.g. robot$supported+customer-1234
+    username: ""          # grommunio subscription user name
     password: ""
     email: ""
   imagePullSecrets: []
@@ -60,7 +60,7 @@ image:
     pullPolicy: IfNotPresent
   mariadb:
     registry: ""
-    # Mirrored daily from docker.io/library/mariadb (public, no credentials)
+    # docker.io/library/mariadb + current security updates, rebuilt daily (public)
     repository: community/mariadb
     tag: "11.8"
     digest: ""

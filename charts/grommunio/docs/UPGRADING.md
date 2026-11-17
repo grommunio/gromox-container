@@ -98,5 +98,5 @@ helm upgrade grommunio ... -f my-values.yaml
 * **0.2.0**: images come from `container.grommunio.com` by default
   (`global.imageRegistry`), the repository is derived from the new
   `global.edition` (`image.<component>.repository: ""`) and MariaDB from the
-  `community/mariadb` mirror. To keep pulling from another registry, set
+  `community/mariadb` image. To keep pulling from another registry, set
   `global.imageRegistry` and the `image.*.repository` values explicitly.
