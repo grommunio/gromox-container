@@ -359,6 +359,7 @@ postconf -e \
   virtual_transport="smtp:[127.0.0.1]:24" \
   relayhost="${RELAYHOST:-}" \
   inet_interfaces=all \
+  disable_vrfy_command=yes \
   smtpd_helo_restrictions=permit_mynetworks,permit_sasl_authenticated,reject_invalid_hostname,reject_non_fqdn_hostname \
   smtpd_sender_restrictions=reject_non_fqdn_sender,permit_sasl_authenticated,permit_mynetworks \
   smtpd_recipient_restrictions="${CORE_RCPT_RESTRICTIONS}" \
@@ -434,7 +435,8 @@ EOF
   # PREPEND takes effect at lookup time, also when the recipient is rejected
   # later on, so the lookup has to be the last recipient restriction. The
   # checks for unauthenticated clients become relay restrictions, which are
-  # evaluated first; same order and replies as without the archive.
+  # evaluated first; same order and replies as without the archive. VRFY
+  # would run the lookup as well (disable_vrfy_command above).
   ARCHIVE_ENVELOPE_CHECK="reject_unlisted_recipient,check_recipient_access pcre:/etc/postfix/grommunio-archiver-envelope.cf"
   postconf -e "smtpd_relay_before_recipient_restrictions=yes" \
               "smtpd_relay_restrictions=permit_mynetworks,permit_sasl_authenticated,defer_unauth_destination,${CORE_UNAUTH_RESTRICTIONS}" \
