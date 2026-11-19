@@ -427,9 +427,10 @@ if [ "${ENABLE_ARCHIVE}" = "true" ]; then
   # dedicated "archive" transport keeps it, all other deliveries strip it so
   # that Bcc recipients are not disclosed.
   # Only one plain address per header: nothing the archiver would split
-  # into further addresses.
+  # into further addresses. Any other accepted recipient is only logged.
   cat > /etc/postfix/grommunio-archiver-envelope.cf <<'EOF'
 /^([A-Za-z0-9!$&'+._-]+@[A-Za-z0-9.-]+)$/   prepend X-Envelope-To: $1
+/./   warn archive: no envelope header for this recipient address
 EOF
   echo "/^X-(Piler-)?Envelope-To:/ IGNORE" > /etc/postfix/grommunio-archiver-strip.pcre
   # PREPEND takes effect at lookup time, also when the recipient is rejected
