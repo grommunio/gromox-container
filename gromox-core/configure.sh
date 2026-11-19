@@ -338,7 +338,8 @@ else
   for net in $(ip -6 route show 2>/dev/null | awk '/^f[cd][0-9a-f]{2}:.*\/[0-9]+ dev/ {print $1}'); do MYNETWORKS="${MYNETWORKS} [${net%/*}]/${net#*/}"; done
 fi
 
-CORE_RCPT_RESTRICTIONS="permit_sasl_authenticated,permit_mynetworks,reject_unknown_recipient_domain,reject_non_fqdn_hostname,reject_non_fqdn_sender,reject_non_fqdn_recipient,reject_unauth_destination,reject_unauth_pipelining"
+CORE_UNAUTH_RESTRICTIONS="reject_unknown_recipient_domain,reject_non_fqdn_hostname,reject_non_fqdn_sender,reject_non_fqdn_recipient,reject_unauth_destination,reject_unauth_pipelining"
+CORE_RCPT_RESTRICTIONS="permit_sasl_authenticated,permit_mynetworks,${CORE_UNAUTH_RESTRICTIONS}"
 TLS_PROTOCOLS='!SSLv2,!SSLv3,!TLSv1,!TLSv1.1'
 TLS_EXCLUDE_CIPHERS="aNULL,eNULL,EXP,MD5,RC4,DES,3DES,DHE,EDH,kDHE,kEDH,ADH"
 
@@ -358,6 +359,7 @@ postconf -e \
   virtual_transport="smtp:[127.0.0.1]:24" \
   relayhost="${RELAYHOST:-}" \
   inet_interfaces=all \
+  disable_vrfy_command=yes \
   smtpd_helo_restrictions=permit_mynetworks,permit_sasl_authenticated,reject_invalid_hostname,reject_non_fqdn_hostname \
   smtpd_sender_restrictions=reject_non_fqdn_sender,permit_sasl_authenticated,permit_mynetworks \
   smtpd_recipient_restrictions="${CORE_RCPT_RESTRICTIONS}" \
@@ -424,9 +426,22 @@ if [ "${ENABLE_ARCHIVE}" = "true" ]; then
   # mail are archived). The header is only meant for the archive copy: the
   # dedicated "archive" transport keeps it, all other deliveries strip it so
   # that Bcc recipients are not disclosed.
-  echo "/(.*)/   prepend X-Envelope-To: \$1" > /etc/postfix/grommunio-archiver-envelope.cf
-  echo "/^X-Envelope-To:/ IGNORE" > /etc/postfix/grommunio-archiver-strip.pcre
-  postconf -e "smtpd_recipient_restrictions=check_recipient_access pcre:/etc/postfix/grommunio-archiver-envelope.cf,${CORE_RCPT_RESTRICTIONS}"
+  # Only one plain address per header: nothing the archiver would split
+  # into further addresses. Any other accepted recipient is only logged.
+  cat > /etc/postfix/grommunio-archiver-envelope.cf <<'EOF'
+/^([A-Za-z0-9!$&'+._-]+@[A-Za-z0-9.-]+)$/   prepend X-Envelope-To: $1
+/./   warn archive: no envelope header for this recipient address
+EOF
+  echo "/^X-(Piler-)?Envelope-To:/ IGNORE" > /etc/postfix/grommunio-archiver-strip.pcre
+  # PREPEND takes effect at lookup time, also when the recipient is rejected
+  # later on, so the lookup has to be the last recipient restriction. The
+  # checks for unauthenticated clients become relay restrictions, which are
+  # evaluated first; same order and replies as without the archive. VRFY
+  # would run the lookup as well (disable_vrfy_command above).
+  ARCHIVE_ENVELOPE_CHECK="reject_unlisted_recipient,check_recipient_access pcre:/etc/postfix/grommunio-archiver-envelope.cf"
+  postconf -e "smtpd_relay_before_recipient_restrictions=yes" \
+              "smtpd_relay_restrictions=permit_mynetworks,permit_sasl_authenticated,defer_unauth_destination,${CORE_UNAUTH_RESTRICTIONS}" \
+              "smtpd_recipient_restrictions=${ARCHIVE_ENVELOPE_CHECK}"
   postconf -e "always_bcc=archive@${FQDN}" \
               "smtp_header_checks=pcre:/etc/postfix/grommunio-archiver-strip.pcre"
   postconf -M archive/unix="archive unix - - n - - smtp"
@@ -435,7 +450,7 @@ if [ "${ENABLE_ARCHIVE}" = "true" ]; then
   postmap lmdb:/etc/postfix/transport
   postconf -e "transport_maps=lmdb:/etc/postfix/transport"
 else
-  postconf -X always_bcc transport_maps smtp_header_checks >/dev/null 2>&1 || true
+  postconf -X always_bcc transport_maps smtp_header_checks smtpd_relay_before_recipient_restrictions smtpd_relay_restrictions >/dev/null 2>&1 || true
   postconf -MX archive/unix >/dev/null 2>&1 || true
   rm -f /etc/postfix/transport /etc/postfix/transport.lmdb /etc/postfix/grommunio-archiver-envelope.cf /etc/postfix/grommunio-archiver-strip.pcre
 fi
@@ -454,7 +469,9 @@ if [ -n "${POSTFIX_INTERNAL_RELAY_PORT:-}" ]; then
   INTERNAL_RCPT_RESTRICTIONS="permit_auth_destination,reject_unauth_pipelining,reject"
   [ "${RELAY_RESTRICTIONS}" = "permit" ] && INTERNAL_RCPT_RESTRICTIONS="reject_unauth_pipelining,permit"
   if [ "${ENABLE_ARCHIVE}" = "true" ]; then
-    INTERNAL_RCPT_RESTRICTIONS="check_recipient_access pcre:/etc/postfix/grommunio-archiver-envelope.cf,${INTERNAL_RCPT_RESTRICTIONS}"
+    # same accept/reject decisions, with the rejects ahead of the envelope check
+    INTERNAL_RCPT_RESTRICTIONS="reject_unauth_destination,${ARCHIVE_ENVELOPE_CHECK},permit"
+    [ "${RELAY_RESTRICTIONS}" = "permit" ] && INTERNAL_RCPT_RESTRICTIONS="reject_unauth_pipelining,${ARCHIVE_ENVELOPE_CHECK},permit"
   fi
   # master.cf "-o" values must not contain whitespace: keep the lists in main.cf
   postconf -e "grommunio_internal_relay_restrictions=${RELAY_RESTRICTIONS}" \

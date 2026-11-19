@@ -21,9 +21,12 @@ Environment (defaults in brackets):
                           exec target, e.g. E2E_TARGET_gromox_core="grommunio-core-0 --"
                           and E2E_TARGET_chat_db="grommunio-mariadb-0 --"
 
-Exit code 0 when all checks pass; prints PASS/FAIL per check.
+Exit code 0 when all checks pass; prints PASS/FAIL per check. XFAIL marks a
+check that cannot pass with the packages in the tested images (the reason is
+printed); it does not count as a failure. SKIP marks a check that does not
+apply to this run.
 """
-import imaplib, json, os, smtplib, ssl, subprocess, sys, time, urllib.request, urllib.error, uuid
+import imaplib, json, os, re, smtplib, ssl, subprocess, sys, time, urllib.request, urllib.error, uuid
 from email.message import EmailMessage
 from email.utils import make_msgid, formatdate
 
@@ -57,9 +60,15 @@ ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
 results = []
+xfailed = []
 
 
-def check(name, ok, info=""):
+def check(name, ok, info="", xfail=""):
+    """xfail: why the check is expected to fail in this deployment (empty: it must pass)."""
+    if xfail and not ok:
+        xfailed.append(name)
+        print(f"XFAIL {name}  {xfail}  {info}")
+        return
     results.append((name, bool(ok), info))
     print(f"{'PASS' if ok else 'FAIL'}  {name}  {info}")
 
@@ -299,13 +308,81 @@ r = dexec(CORE, "postconf", "-h", "smtpd_recipient_restrictions", "mynetworks", 
 lines = r.stdout.splitlines()
 rr = lines[0] if lines else ""
 mn = lines[1] if len(lines) > 1 else ""
+# with the archive enabled the checks for unauthenticated clients are relay restrictions
+ua = next((l for l in lines[::2] if "reject_unauth_destination" in l), rr)
 check("postfix: reject_unauth_destination after permit_mynetworks on port 25",
-      "reject_unauth_destination" in rr and rr.index("permit_mynetworks") < rr.index("reject_unauth_destination"), rr[:160])
+      "reject_unauth_destination" in ua and ua.index("permit_mynetworks") < ua.index("reject_unauth_destination"), ua[:160])
 check("postfix: mynetworks limited to loopback + compose network", mn and "0.0.0.0/0" not in mn and "::/0" not in mn, mn)
 r = dexec(CORE, "postconf", "-P", "2587/inet/smtpd_relay_restrictions", "2465/inet/smtpd_relay_restrictions")
 check("postfix: submission ports relay only for authenticated users", r.stdout.count("permit_sasl_authenticated,reject") == 2, r.stdout.strip().replace("\n", " | "))
+# archive envelope header: PREPEND takes effect at lookup time, so nothing may reject the
+# recipient after the lookup, and it must only match one plain address
+ri = dexec(CORE, "postconf", "-h", "grommunio_internal_recipient_restrictions").stdout.strip()
+for what, lst in (("port 25", rr), ("internal relay port", ri)):
+    if "check_recipient_access" in lst:
+        before, after = lst.split("check_recipient_access", 1)
+        check(f"postfix: archive envelope lookup follows all recipient rejects ({what})",
+              "reject_unlisted_recipient" in before and "reject" not in after and "defer" not in after, lst[:160])
+if "check_recipient_access" in rr:
+    plain = dexec(CORE, "postmap", "-q", USER, "pcre:/etc/postfix/grommunio-archiver-envelope.cf").stdout.strip()
+    odd = dexec(CORE, "postmap", "-q", f"x={USER}", "pcre:/etc/postfix/grommunio-archiver-envelope.cf").stdout.strip()
+    check("postfix: archive envelope header only for a single plain address", plain.endswith(f"X-Envelope-To: {USER}") and "X-Envelope-To" not in odd, f"{plain!r} {odd!r}")
+    r = dexec(CORE, "postconf", "-h", "disable_vrfy_command")
+    check("postfix: VRFY disabled (it would run the archive envelope lookup)", r.stdout.strip() == "yes", r.stdout.strip())
+
+# Archive envelope (verified in section 7): recipients named in headers the client supplied and
+# recipients postfix rejected must not show up as recipients of the archived mail.
+PHANTOM = {h: f"phantom{uuid.uuid4().hex[:10]}@{DOMAIN}" for h in ("X-Envelope-To", "X-Piler-Envelope-To", "Recipient")}
+NOUSER = f"nouser{uuid.uuid4().hex[:10]}@{DOMAIN}"
+subj_forged = f"e2e forged envelope {uuid.uuid4().hex[:8]}"
+subj_rejected = f"e2e rejected rcpt {uuid.uuid4().hex[:8]}"
+try:
+    s = smtplib.SMTP(HOST, SMTP_PORT, timeout=30)
+    msg = EmailMessage(); msg["From"] = "sender@example.org"; msg["To"] = USER; msg["Subject"] = subj_forged
+    msg["Date"] = formatdate(); msg["Message-ID"] = make_msgid(domain="example.org")
+    for h, addr in PHANTOM.items():
+        msg[h] = addr
+    msg.set_content(f"inbound {subj_forged}")
+    s.send_message(msg); s.quit()
+    check("inbound SMTP (25) with client-supplied envelope headers accepted", True)
+    subjects.append(subj_forged)
+except Exception as e:
+    check("inbound SMTP (25) with client-supplied envelope headers accepted", False, str(e))
+try:
+    s = smtplib.SMTP(HOST, SMTP_PORT, timeout=30)
+    msg = EmailMessage(); msg["From"] = "sender@example.org"; msg["To"] = USER; msg["Subject"] = subj_rejected
+    msg["Date"] = formatdate(); msg["Message-ID"] = make_msgid(domain="example.org"); msg.set_content(f"inbound {subj_rejected}")
+    s.ehlo(); s.mail("sender@example.org")
+    codes = [s.rcpt(USER)[0], s.rcpt(NOUSER)[0]]
+    s.data(msg.as_bytes()); s.quit()
+    check("inbound SMTP (25): unknown recipient rejected, mail accepted for the other one", codes[0] == 250 and codes[1] >= 500, f"RCPT replies {codes}")
+    subjects.append(subj_rejected)
+except Exception as e:
+    check("inbound SMTP (25): unknown recipient rejected, mail accepted for the other one", False, str(e))
+# A recipient form that postfix resolves to bob's address but does not accept from an
+# unauthenticated client. A client inside mynetworks gets it accepted: nothing to check then.
+subj_form = f"e2e rewritten rcpt {uuid.uuid4().hex[:8]}"
+FORM = f"{DOMAIN}!{USER2.split('@')[0]}"
+form_rejected = False
+try:
+    s = smtplib.SMTP(HOST, SMTP_PORT, timeout=30)
+    msg = EmailMessage(); msg["From"] = "sender@example.org"; msg["To"] = USER; msg["Subject"] = subj_form
+    msg["Date"] = formatdate(); msg["Message-ID"] = make_msgid(domain="example.org"); msg.set_content(f"inbound {subj_form}")
+    s.ehlo(); s.mail("sender@example.org")
+    codes = [s.rcpt(USER)[0], s.docmd("RCPT", f"TO:<{FORM}>")[0]]
+    form_rejected = codes[0] == 250 and codes[1] >= 400
+    if form_rejected:
+        s.data(msg.as_bytes())
+        subjects.append(subj_form)
+    else:
+        s.rset()
+    s.quit()
+    check("inbound SMTP (25): transaction with a recipient given as <domain!user>", codes[0] == 250, f"RCPT replies {codes}")
+except Exception as e:
+    check("inbound SMTP (25): transaction with a recipient given as <domain!user>", False, str(e))
 
 # ── 6. delivery: mails arrive in INBOX via IMAP ───────────────────────
+ENVELOPE_HDR = re.compile(r"^X-(Piler-)?Envelope-To:", re.I | re.M)
 found = set()
 for _ in range(30):
     m = imap_login(IMAPS_PORT, False)
@@ -329,7 +406,7 @@ if m:
     for num in (data[0].split() if data and data[0] else []):
         typ, d = m.fetch(num, "(BODY[HEADER])")
         hdr = b"".join(p[1] for p in d if isinstance(p, tuple)).decode(errors="replace")
-        if "X-Envelope-To:" in hdr:
+        if ENVELOPE_HDR.search(hdr):
             leak = hdr[:200]
     m.logout()
 check("delivered mails carry no X-Envelope-To header (Bcc not disclosed)", leak is None, (leak or "")[:120].replace("\n", " "))
@@ -340,7 +417,7 @@ try:
     for num in (data[0].split() if data and data[0] else []):
         typ, d = mb.fetch(num, "(BODY[HEADER])")
         hdr = b"".join(p[1] for p in d if isinstance(p, tuple)).decode(errors="replace")
-        if "X-Envelope-To:" in hdr:
+        if ENVELOPE_HDR.search(hdr):
             leak2 = hdr[:120]
     mb.logout()
     check("Bcc recipient received the copies without X-Envelope-To", n >= 2 and leak2 is None, f"bob INBOX={n} leak={leak2!r}")
@@ -364,6 +441,30 @@ for _ in range(12):
         break
     time.sleep(5)
 check("archive stored the BCC copies of this run's mails", subjects and cnt == len(subjects), f"{cnt}/{len(subjects)}")
+
+def archived_rcpts(subj):
+    """Recipient addresses the archive recorded for the mail with this subject."""
+    q = f"SELECT r.`to` FROM rcpt r JOIN metadata m ON m.id=r.id WHERE m.subject LIKE '%{subj}%'"
+    r = subprocess.run([*exec_target("archive-db"), "mariadb", "-u" + os.environ.get("ARCHIVE_MYSQL_USER", "groarchive"), "-p" + os.environ.get("ARCHIVE_MYSQL_PASS", "grommunio"), os.environ.get("ARCHIVE_MYSQL_DB", "groarchive"), "-N", "-s", "-e", q],
+                       capture_output=True, text=True)
+    return set(r.stdout.split())
+
+# Envelope headers below the first Received: line were written by the client. grommunio-archive
+# ignores them since the release that introduced the envelope_headers_anywhere option; with an
+# older package in the image these checks are reported as XFAIL.
+r = dexec("gromox-archive", "pilerconf", "-q", "envelope_headers_anywhere")
+OLD_ARCHIVE = "" if "envelope_headers_anywhere" in r.stdout else "grommunio-archive in the image predates the envelope header fix (no envelope_headers_anywhere option)"
+rc = archived_rcpts(subj_forged)
+check("archive: mail with client-supplied envelope headers keeps its real recipient", USER in rc, f"rcpt: {sorted(rc)}")
+for h, addr in PHANTOM.items():
+    check(f"archive: client-supplied {h}: header adds no recipient", USER in rc and addr not in rc, f"rcpt: {sorted(rc)}", xfail=OLD_ARCHIVE)
+rc = archived_rcpts(subj_rejected)
+check("archive: recipient rejected by postfix is not recorded", USER in rc and NOUSER not in rc, f"rcpt: {sorted(rc)}")
+if form_rejected:
+    rc = archived_rcpts(subj_form)
+    check("archive: rejected <domain!user> recipient is not recorded as that user", USER in rc and USER2 not in rc, f"rcpt: {sorted(rc)}")
+else:
+    print(f"SKIP  archive: rejected <domain!user> recipient is not recorded as that user  postfix accepted <{FORM}> from this client")
 
 # ── 8. Files: login with grommunio credentials through the proxy ──────
 import base64
@@ -424,7 +525,7 @@ else:
 check("grommunio-index runs as groindex:groweb", r.returncode == 0, (r.stdout + r.stderr)[:200].replace("\n", " "))
 
 failed = [n for n, ok, _ in results if not ok]
-print(f"\n{len(results) - len(failed)}/{len(results)} checks passed")
+print(f"\n{len(results) - len(failed)}/{len(results)} checks passed" + (f", {len(xfailed)} expected failures (XFAIL)" if xfailed else ""))
 if failed:
     print("FAILED:", *failed, sep="\n  - ")
 sys.exit(1 if failed else 0)

@@ -15,3 +15,9 @@ FQDN=mail.example.test DOMAIN=example.test ADMIN_PASS=... python3 tests/e2e.py
 `FQDN` must resolve to the docker host for the machine running the test (an
 `/etc/hosts` entry is enough). TLS certificates are not verified. See the
 docstring in `e2e.py` for all variables.
+
+A check reported as `XFAIL` cannot pass with the packages in the tested images
+and is not counted as a failure; the line names the reason. The checks that
+headers supplied by the sender (`X-Envelope-To`, `X-Piler-Envelope-To`,
+`Recipient`) add no recipient to the archived mail need a grommunio-archive
+package that knows the `envelope_headers_anywhere` option.
